@@ -135,8 +135,7 @@ Please don't commit your own `.env` file — it's already excluded via
 
 ## Team
 
-Built for the New Joinee Pilot · 5 Teams · 34 Engineers · Tata Electronics,
-Dholera Fab. 
+vaibhav , tulsi , tanisha , ishika and aniket  
 
 Once it's saved, push it up:
 
