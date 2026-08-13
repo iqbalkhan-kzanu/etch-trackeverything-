@@ -344,7 +344,7 @@ export default function Tracker({ user, onLogout }) {
       <div className="flex-1 min-w-0">
         <div className="border-b border-line bg-surface px-6 md:px-10 py-6 flex items-center justify-between gap-4 flex-wrap sticky top-0 z-10">
           <div className="min-w-0">
-            <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">Dholera · Action Item Tracker</p>
+            <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">ONE TEAM ONE DREAM</p>   
             <h1 className="text-xl font-semibold text-ink">{nav === 'mine' ? 'My Tasks' : 'All Items'}</h1>
           </div>
           <div className="flex items-center gap-3 md:hidden">
