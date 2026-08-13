@@ -1,33 +1,44 @@
 import { useEffect, useState } from 'react'
+import { supabase } from './supabaseClient'
 import Landing from './components/Landing'
-import Login from './components/Login'
+import Auth from './components/Auth'
 import Tracker from './components/Tracker'
 
 export default function App() {
-  const [view, setView] = useState('landing') // 'landing' | 'login' | 'app'
+  const [view, setView] = useState('landing')
   const [user, setUser] = useState(null)
+  const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    const saved = localStorage.getItem('action_tracker_user')
-    if (saved) {
-      setUser(JSON.parse(saved))
-      setView('app')
-    }
+    checkSession()
   }, [])
 
-  function handleLogin(userInfo) {
-    localStorage.setItem('action_tracker_user', JSON.stringify(userInfo))
-    setUser(userInfo)
+  async function checkSession() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.user) {
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
+      if (profile) {
+        setUser({ id: session.user.id, name: profile.name, team: profile.team, email: session.user.email })
+        setView('app')
+      }
+    }
+    setChecking(false)
+  }
+
+  function handleAuthenticated(u) {
+    setUser(u)
     setView('app')
   }
 
-  function handleLogout() {
-    localStorage.removeItem('action_tracker_user')
+  async function handleLogout() {
+    await supabase.auth.signOut()
     setUser(null)
     setView('landing')
   }
 
-  if (view === 'landing') return <Landing onEnter={() => setView('login')} />
-  if (view === 'login') return <Login onLogin={handleLogin} onBack={() => setView('landing')} />
+  if (checking) return null
+
+  if (view === 'landing') return <Landing onEnter={() => setView('auth')} />
+  if (view === 'auth') return <Auth onAuthenticated={handleAuthenticated} onBack={() => setView('landing')} />
   return <Tracker user={user} onLogout={handleLogout} />
-}       
+}     

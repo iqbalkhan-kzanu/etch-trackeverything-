@@ -409,6 +409,27 @@ export default function Tracker({ user, onLogout }) {
           </form>
         )}
 
+        <div className="flex items-center gap-2 mb-4">
+            <button
+              onClick={() => setFilterOwner(user?.name || '')}
+              className={`font-mono text-xs uppercase tracking-wider px-4 py-2 rounded-md border transition-colors ${
+                filterOwner === (user?.name || '') && filterOwner !== ''
+                  ? 'bg-accent-blue text-white border-accent-blue'
+                  : 'border-line text-ink-muted hover:text-ink'
+              }`}
+            >
+              My Tasks
+            </button>
+            <button
+              onClick={() => setFilterOwner('')}
+              className={`font-mono text-xs uppercase tracking-wider px-4 py-2 rounded-md border transition-colors ${
+                filterOwner === '' ? 'bg-accent-blue text-white border-accent-blue' : 'border-line text-ink-muted hover:text-ink'
+              }`}
+            >
+              All Items
+            </button>
+          </div>       
+
         <div className="flex gap-3 mb-4 flex-wrap">
           <select className="border border-line rounded-md p-2.5 text-sm bg-surface" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="all">All statuses</option>
@@ -466,7 +487,7 @@ export default function Tracker({ user, onLogout }) {
                         <span className={`font-mono text-[11px] uppercase tracking-wider px-2 py-0.5 rounded ${style.badge}`}>
                           {STATUS_LABELS[item.status]}
                         </span>
-                        <StageBar status={item.status} />
+                        <StageBar status={item.status} /> 
                       </div>
                       {label && (
                         <button
@@ -497,4 +518,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}            
+}                 
