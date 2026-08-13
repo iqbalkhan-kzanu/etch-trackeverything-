@@ -7,6 +7,7 @@ const SEVERITIES = [
   { label: 'High', color: '#C1443C' },
   { label: 'Critical', color: '#8B1E1E' },
 ]
+const MENTOR_COLOR = '#7C5CBF'
 
 function severityColor(label) {
   return SEVERITIES.find((s) => s.label === label)?.color || '#5C6670'
@@ -17,16 +18,56 @@ function formatTime(ts) {
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result.split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+async function analyzeHazard(file) {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY
+  if (!apiKey) return null
+  const base64 = await fileToBase64(file)
+  const prompt = `You are a workplace safety inspector at a semiconductor fab. Look at this photo and identify the most likely safety hazard shown. Respond ONLY with valid JSON, no markdown fences, no extra text, in exactly this format:
+{"hazard": "<one sentence describing the hazard>", "severity": "Low|Medium|High|Critical", "measures": ["<short action 1>", "<short action 2>", "<short action 3>"]}`
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: file.type, data: base64 } },
+          ],
+        }],
+      }),
+    }
+  )
+  const data = await res.json()
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+  const cleaned = text.replace(/```json|```/g, '').trim()
+  return JSON.parse(cleaned)
+}
+
 export default function Safety({ user }) {
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [aiSuggestion, setAiSuggestion] = useState(null)
   const [error, setError] = useState('')
   const [file, setFile] = useState(null)
   const [description, setDescription] = useState('')
   const [location, setLocation] = useState('')
   const [severity, setSeverity] = useState('Medium')
+  const [lightbox, setLightbox] = useState(null)
 
   async function loadReports() {
     setLoading(true)
@@ -36,6 +77,28 @@ export default function Safety({ user }) {
   }
 
   useEffect(() => { loadReports() }, [])
+
+  async function handleFileChange(e) {
+    const selected = e.target.files[0]
+    setFile(selected)
+    setAiSuggestion(null)
+    if (!selected) return
+    setAnalyzing(true)
+    try {
+      const result = await analyzeHazard(selected)
+      setAiSuggestion(result)
+    } catch (err) {
+      // Silent fail is fine here — AI suggestion is a bonus, not required to submit
+      setAiSuggestion(null)
+    }
+    setAnalyzing(false)
+  }
+
+  function applySuggestion() {
+    if (!aiSuggestion) return
+    setDescription(aiSuggestion.hazard + (aiSuggestion.measures?.length ? `\n\nSuggested measures:\n- ${aiSuggestion.measures.join('\n- ')}` : ''))
+    if (aiSuggestion.severity) setSeverity(aiSuggestion.severity)
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -65,6 +128,7 @@ export default function Safety({ user }) {
     setDescription('')
     setLocation('')
     setSeverity('Medium')
+    setAiSuggestion(null)
     setShowForm(false)
     loadReports()
   }
@@ -79,6 +143,15 @@ export default function Safety({ user }) {
 
   return (
     <div>
+      {lightbox && (
+        <div className="fixed inset-0 bg-ink/80 backdrop-blur-sm flex items-center justify-center p-6 z-50" onClick={() => setLightbox(null)}>
+          <button className="absolute top-6 right-6 text-white font-mono text-sm uppercase tracking-wider" onClick={() => setLightbox(null)}>
+            Close ✕
+          </button>
+          <img src={lightbox} alt="Hazard full size" className="max-w-full max-h-full rounded-lg" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-semibold text-ink">Safety at Site</h2>
@@ -103,13 +176,34 @@ export default function Safety({ user }) {
               type="file"
               accept="image/*"
               className="w-full border border-line rounded-md p-2.5 mt-1 bg-canvas text-sm"
-              onChange={(e) => setFile(e.target.files[0])}
+              onChange={handleFileChange}
             />
           </div>
+
+          {analyzing && (
+            <p className="font-mono text-xs text-ink-muted animate-pulse">Analyzing photo with AI…</p>
+          )}
+
+          {aiSuggestion && !analyzing && (
+            <div className="rounded-lg p-3" style={{ backgroundColor: `${MENTOR_COLOR}0D`, border: `1px solid ${MENTOR_COLOR}40` }}>
+              <p className="font-mono text-[10px] uppercase tracking-wider mb-1" style={{ color: MENTOR_COLOR }}>AI Suggestion</p>
+              <p className="text-sm text-ink">{aiSuggestion.hazard}</p>
+              {aiSuggestion.measures?.length > 0 && (
+                <ul className="text-xs text-ink-muted mt-1.5 list-disc pl-4 space-y-0.5">
+                  {aiSuggestion.measures.map((m, i) => <li key={i}>{m}</li>)}
+                </ul>
+              )}
+              <button type="button" onClick={applySuggestion} className="mt-2 text-xs font-medium px-3 py-1.5 rounded-md text-white" style={{ backgroundColor: MENTOR_COLOR }}>
+                Use This Description
+              </button>
+            </div>
+          )}
+
           <div>
             <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">What's the hazard?</label>
             <textarea
               required
+              rows={3}
               className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-red/40 focus:border-accent-red"
               placeholder="e.g. Exposed wiring near the FMCS panel"
               value={description}
@@ -159,7 +253,7 @@ export default function Safety({ user }) {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {reports.map((r) => (
             <div key={r.id} className="bg-surface border border-line rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-              <div className="relative">
+              <div className="relative cursor-pointer" onClick={() => setLightbox(r.photo_url)}>
                 <img src={r.photo_url} alt="Hazard" className="w-full h-40 object-cover" />
                 <span
                   className="absolute top-2 left-2 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded text-white"
@@ -174,7 +268,7 @@ export default function Safety({ user }) {
                 )}
               </div>
               <div className="p-4">
-                <p className="text-sm text-ink">{r.description}</p>
+                <p className="text-sm text-ink whitespace-pre-line">{r.description}</p>
                 {r.location && <p className="text-xs text-ink-muted mt-1">📍 {r.location}</p>}
                 <p className="font-mono text-[11px] text-ink-muted mt-2">
                   {r.reported_by} {r.team && `· ${r.team}`} · {formatTime(r.created_at)}
@@ -196,4 +290,4 @@ export default function Safety({ user }) {
       )}
     </div>
   )
-}            
+}       
