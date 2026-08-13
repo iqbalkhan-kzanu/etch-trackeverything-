@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
+import Safety from './Safety' 
 
 const SOURCES = ['governance', 'audit', 'project', 'leadership_review', 'other']
 const STAGES = ['open', 'in_progress', 'ready_to_close', 'closed']
@@ -330,6 +331,7 @@ export default function Tracker({ user, onLogout }) {
           <nav className="space-y-1">
             {navItem('mine', 'My Tasks', goToMine)}
             {navItem('all', 'All Items', goToAll)}
+            {navItem('safety', 'Safety at Site', () => setNav('safety'))}   
           </nav>
         </div>
         <div className="border-t border-white/10 pt-4">
@@ -345,21 +347,27 @@ export default function Tracker({ user, onLogout }) {
         <div className="border-b border-line bg-surface px-6 md:px-10 py-6 flex items-center justify-between gap-4 flex-wrap sticky top-0 z-10">
           <div className="min-w-0">
             <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">ONE TEAM ONE DREAM</p>   
-            <h1 className="text-xl font-semibold text-ink">{nav === 'mine' ? 'My Tasks' : 'All Items'}</h1>
+            <h1 className="text-xl font-semibold text-ink">{nav === 'mine' ? 'My Tasks' : nav === 'safety' ? 'Safety at Site' : 'All Items'}</h1>  
           </div>
           <div className="flex items-center gap-3 md:hidden">
             <span className="text-sm font-medium text-ink">{user?.name}</span>
             <button onClick={onLogout} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted border border-line rounded-md px-3 py-2">Log Out</button>
           </div>
-          <button
-            onClick={() => setShowForm((s) => !s)}
-            className="bg-accent-blue text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-blue/90 transition-colors"
-          >
-            {showForm ? 'Cancel' : '+ New Action Item'}
-          </button>
+          {nav !== 'safety' && (
+            <button
+              onClick={() => setShowForm((s) => !s)}
+              className="bg-accent-blue text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-blue/90 transition-colors"
+            >
+              {showForm ? 'Cancel' : '+ New Action Item'}
+            </button>
+          )}  
         </div>
 
-        <div className="px-6 md:px-10 py-8">
+        <div className="px-6 md:px-10 py-8">  
+          {nav === 'safety' ? (
+            <Safety user={user} />
+          ) : (
+          <>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
             <StatTile label="Open" value={counts.open} topColor={STATUS_STYLES.open.top} />
             <StatTile label="In Progress" value={counts.in_progress} topColor={STATUS_STYLES.in_progress.top} />
@@ -532,8 +540,10 @@ export default function Tracker({ user, onLogout }) {
             </div>
             <OwnerStatusPanel items={items} />
           </div>
+          </>
+          )}
         </div>
       </div>
     </div>
   )
-}          
+} 
