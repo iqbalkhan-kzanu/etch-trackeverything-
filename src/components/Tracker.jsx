@@ -15,11 +15,13 @@ const STATUS_STYLES = {
   ready_to_close: { bar: 'bg-accent-amber', badge: 'bg-accent-amber/10 text-accent-amber', top: '#D98C2B' },
   closed: { bar: 'bg-accent-green', badge: 'bg-accent-green/10 text-accent-green', top: '#2F8F5B' },
 }
+const MENTOR_COLOR = '#7C5CBF'
 const ACTION_META = {
   created: { label: 'Logged', color: '#5C6670' },
   advanced_to_in_progress: { label: 'Started progress', color: '#2B6CB0' },
   advanced_to_ready_to_close: { label: 'Marked ready to close', color: '#D98C2B' },
   verified_closed: { label: 'Verified & closed', color: '#2F8F5B' },
+  mentor_comment: { label: 'Mentor commented', color: MENTOR_COLOR },
 }
 const VERIFIERS = {
   'Ramkumar': '12345',
@@ -200,9 +202,11 @@ export default function Tracker({ user, onLogout }) {
   const [items, setItems] = useState([])
   const [activity, setActivity] = useState({})
   const [expanded, setExpanded] = useState({})
+  const [mentorEditing, setMentorEditing] = useState({})
+  const [mentorDraft, setMentorDraft] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [nav, setNav] = useState('all') // 'mine' | 'all'
+  const [nav, setNav] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterOwner, setFilterOwner] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -270,6 +274,23 @@ export default function Tracker({ user, onLogout }) {
 
   function toggleExpanded(id) { setExpanded((prev) => ({ ...prev, [id]: !prev[id] })) }
 
+  function openMentorEditor(item) {
+    setMentorDraft((prev) => ({ ...prev, [item.id]: item.mentor_comment || '' }))
+    setMentorEditing((prev) => ({ ...prev, [item.id]: true }))
+  }
+
+  async function saveMentorComment(item) {
+    const text = (mentorDraft[item.id] || '').trim()
+    if (!text) return
+    const { error } = await supabase.from('action_items').update({
+      mentor_comment: text, mentor_by: user?.name || 'Unknown', mentor_at: new Date().toISOString(),
+    }).eq('id', item.id)
+    if (error) { setError(error.message); return }
+    await supabase.from('item_activity').insert([{ item_id: item.id, actor: user?.name || 'Unknown', action: 'mentor_comment', note: text }])
+    setMentorEditing((prev) => ({ ...prev, [item.id]: false }))
+    loadItems()
+  }
+
   const filtered = items.filter((i) => {
     if (filterStatus !== 'all' && i.status !== filterStatus) return false
     if (filterOwner && !i.owner_name.toLowerCase().includes(filterOwner.toLowerCase())) return false
@@ -299,8 +320,7 @@ export default function Tracker({ user, onLogout }) {
     <div className="min-h-screen flex bg-canvas font-sans text-ink">
       {closingItem && <ClosureModal item={closingItem} onCancel={() => setClosingItem(null)} onConfirm={handleConfirmClosure} />}
 
-      {/* Sidebar */}
-      <aside className="w-64 shrink-0 bg-ink text-white flex flex-col justify-between p-6 sticky top-0 h-screen hidden md:flex">
+      <aside className="w-64 shrink-0 bg-ink text-white flex-col justify-between p-6 sticky top-0 h-screen hidden md:flex">
         <div>
           <div className="flex items-center gap-2 mb-10">
             <div className="w-8 h-8 rounded-lg bg-accent-blue flex items-center justify-center font-bold text-sm shrink-0">E</div>
@@ -321,7 +341,6 @@ export default function Tracker({ user, onLogout }) {
         </div>
       </aside>
 
-      {/* Main */}
       <div className="flex-1 min-w-0">
         <div className="border-b border-line bg-surface px-6 md:px-10 py-6 flex items-center justify-between gap-4 flex-wrap sticky top-0 z-10">
           <div className="min-w-0">
@@ -421,6 +440,7 @@ export default function Tracker({ user, onLogout }) {
                     const label = nextActionLabel(item.status)
                     const isOpen = !!expanded[item.id]
                     const entries = activity[item.id] || []
+                    const isEditingMentor = !!mentorEditing[item.id]
                     return (
                       <div
                         key={item.id}
@@ -455,11 +475,50 @@ export default function Tracker({ user, onLogout }) {
                                 {label}
                               </button>
                             )}
+                            <button
+                              onClick={() => (isEditingMentor ? setMentorEditing((p) => ({ ...p, [item.id]: false })) : openMentorEditor(item))}
+                              className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border transition-colors"
+                              style={{ borderColor: MENTOR_COLOR, color: MENTOR_COLOR, backgroundColor: isEditingMentor ? `${MENTOR_COLOR}15` : 'transparent' }}
+                            >
+                              Mentor {item.mentor_comment ? '💬' : ''}
+                            </button>
                             <button onClick={() => toggleExpanded(item.id)} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted hover:text-accent-blue border border-line rounded-md px-2.5 py-1.5 whitespace-nowrap">
                               {isOpen ? 'Hide' : 'Timeline'} ({entries.length})
                             </button>
                           </div>
                         </div>
+
+                        {item.mentor_comment && !isEditingMentor && (
+                          <div className="mt-3 rounded-lg px-3 py-2 text-sm" style={{ backgroundColor: `${MENTOR_COLOR}12`, borderLeft: `3px solid ${MENTOR_COLOR}` }}>
+                            <p className="font-mono text-[10px] uppercase tracking-wider mb-0.5" style={{ color: MENTOR_COLOR }}>
+                              Mentor Comment — {item.mentor_by}
+                            </p>
+                            <p className="text-ink">{item.mentor_comment}</p>
+                          </div>
+                        )}
+
+                        {isEditingMentor && (
+                          <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: `${MENTOR_COLOR}0D`, border: `1px solid ${MENTOR_COLOR}40` }}>
+                            <textarea
+                              autoFocus
+                              rows={2}
+                              placeholder="Leave a comment on this item's progress…"
+                              className="w-full bg-surface border border-line rounded-md p-2 text-sm focus:outline-none focus:ring-2"
+                              style={{ '--tw-ring-color': `${MENTOR_COLOR}40` }}
+                              value={mentorDraft[item.id] || ''}
+                              onChange={(e) => setMentorDraft((p) => ({ ...p, [item.id]: e.target.value }))}
+                            />
+                            <div className="flex gap-2 mt-2 justify-end">
+                              <button onClick={() => setMentorEditing((p) => ({ ...p, [item.id]: false }))} className="text-xs px-3 py-1.5 rounded-md text-ink-muted hover:text-ink">
+                                Cancel
+                              </button>
+                              <button onClick={() => saveMentorComment(item)} className="text-xs px-3 py-1.5 rounded-md text-white font-medium" style={{ backgroundColor: MENTOR_COLOR }}>
+                                Post Comment
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         {isOpen && (
                           <div className="border-t border-line mt-3">
                             <Timeline entries={entries} />
@@ -477,4 +536,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}    
+}          
