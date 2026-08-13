@@ -212,6 +212,7 @@ export default function Tracker({ user, onLogout }) {
   const [filterOwner, setFilterOwner] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [closingItem, setClosingItem] = useState(null)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)  
   const [form, setForm] = useState({
     title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '',
   })
@@ -236,8 +237,8 @@ export default function Tracker({ user, onLogout }) {
 
   useEffect(() => { loadItems() }, [])
 
-  function goToMine() { setNav('mine'); setFilterOwner(user?.name || '') }
-  function goToAll() { setNav('all'); setFilterOwner('') }
+  function goToMine() { setNav('mine'); setFilterOwner(user?.name || ''); setMobileNavOpen(false) }
+  function goToAll() { setNav('all'); setFilterOwner(''); setMobileNavOpen(false) }  
 
   async function handleCreate(e) {
     e.preventDefault()
@@ -321,9 +322,15 @@ export default function Tracker({ user, onLogout }) {
     <div className="min-h-screen flex bg-canvas font-sans text-ink">
       {closingItem && <ClosureModal item={closingItem} onCancel={() => setClosingItem(null)} onConfirm={handleConfirmClosure} />}
 
-      <aside className="w-64 shrink-0 bg-ink text-white flex-col justify-between p-6 sticky top-0 h-screen hidden md:flex">
+      {mobileNavOpen && (
+        <div className="fixed inset-0 bg-ink/60 z-40 md:hidden" onClick={() => setMobileNavOpen(false)} />
+      )}
+      <aside className={`w-64 shrink-0 bg-ink text-white flex-col justify-between p-6 fixed md:sticky top-0 left-0 h-screen z-50 md:z-auto ${mobileNavOpen ? 'flex' : 'hidden'} md:flex`}>
         <div>
-          <div className="flex items-center gap-2 mb-10">
+          <button onClick={() => setMobileNavOpen(false)} className="md:hidden font-mono text-xs uppercase tracking-wider text-white/60 hover:text-white mb-6">
+            ✕ Close
+          </button>
+          <div className="flex items-center gap-2 mb-10">   
             <div className="w-8 h-8 rounded-lg bg-accent-blue flex items-center justify-center font-bold text-sm shrink-0">E</div>
             <span className="text-lg font-bold tracking-tight">ETCH<span className="text-accent-blue">.</span></span>
           </div>
@@ -331,7 +338,7 @@ export default function Tracker({ user, onLogout }) {
           <nav className="space-y-1">
             {navItem('mine', 'My Tasks', goToMine)}
             {navItem('all', 'All Items', goToAll)}
-            {navItem('safety', 'Safety at Site', () => setNav('safety'))}   
+            {navItem('safety', 'Safety at Site', () => { setNav('safety'); setMobileNavOpen(false) })}     
           </nav>
         </div>
         <div className="border-t border-white/10 pt-4">
@@ -350,9 +357,12 @@ export default function Tracker({ user, onLogout }) {
             <h1 className="text-xl font-semibold text-ink">{nav === 'mine' ? 'My Tasks' : nav === 'safety' ? 'Safety at Site' : 'All Items'}</h1>  
           </div>
           <div className="flex items-center gap-3 md:hidden">
+            <button onClick={() => setMobileNavOpen(true)} className="border border-line rounded-md px-3 py-2 text-ink">
+              ☰
+            </button>
             <span className="text-sm font-medium text-ink">{user?.name}</span>
             <button onClick={onLogout} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted border border-line rounded-md px-3 py-2">Log Out</button>
-          </div>
+          </div>     
           {nav !== 'safety' && (
             <button
               onClick={() => setShowForm((s) => !s)}
