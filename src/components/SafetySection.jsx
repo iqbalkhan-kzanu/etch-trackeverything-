@@ -7,7 +7,8 @@ const SEVERITIES = [
   { label: 'High', color: '#C1443C' },
   { label: 'Critical', color: '#8B1E1E' },
 ]
-const MENTOR_COLOR = '#7C5CBF'
+const MENTOR_COLOR = '#7C5CBF' 
+const EHS_PASSWORD = 'An@1406'
 
 function severityColor(label) {
   return SEVERITIES.find((s) => s.label === label)?.color || '#5C6670'
@@ -18,24 +19,28 @@ function formatTime(ts) {
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-function fileToBase64(file) {
+function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(reader.result.split(',')[1])
     reader.onerror = reject
-    reader.readAsDataURL(file)
+    reader.readAsDataURL(blob)
   })
 }
 
-async function analyzeHazard(file) {
+async function analyzeHazardFromUrl(photoUrl) {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY
-  if (!apiKey) return null
-  const base64 = await fileToBase64(file)
+  if (!apiKey) throw new Error('AI key not configured')
+
+  const imgRes = await fetch(photoUrl)
+  const blob = await imgRes.blob()
+  const base64 = await blobToBase64(blob)
+
   const prompt = `You are a workplace safety inspector at a semiconductor fab. Look at this photo and identify the most likely safety hazard shown. Respond ONLY with valid JSON, no markdown fences, no extra text, in exactly this format:
 {"hazard": "<one sentence describing the hazard>", "severity": "Low|Medium|High|Critical", "measures": ["<short action 1>", "<short action 2>", "<short action 3>"]}`
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -43,7 +48,7 @@ async function analyzeHazard(file) {
         contents: [{
           parts: [
             { text: prompt },
-            { inline_data: { mime_type: file.type, data: base64 } },
+            { inline_data: { mime_type: blob.type || 'image/jpeg', data: base64 } },
           ],
         }],
       }),
@@ -55,19 +60,67 @@ async function analyzeHazard(file) {
   return JSON.parse(cleaned)
 }
 
+function ResolveModal({ report, onCancel, onConfirm }) {
+  const [employeeId, setEmployeeId] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError('')
+    if (!employeeId.trim()) { setError('Enter your employee ID.'); return }
+    if (password !== EHS_PASSWORD) { setError('Incorrect EHS password.'); return }
+    setSubmitting(true)
+    await onConfirm(employeeId.trim())
+    setSubmitting(false)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+      <div className="relative bg-surface border border-line rounded-xl p-6 w-full max-w-md shadow-xl overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-accent-green" />
+        <p className="font-mono text-xs uppercase tracking-wider text-accent-green mb-1">EHS Authorization</p>
+        <h2 className="text-xl font-semibold text-ink mb-1">Mark Resolved</h2>
+        <p className="text-sm text-ink-muted mb-5">Only EHS team members can close out a hazard report.</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Employee ID</label>
+            <input className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-green/40 focus:border-accent-green"
+              value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} />
+          </div>
+          <div>
+            <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">EHS Password</label>
+            <input type="password" className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-green/40 focus:border-accent-green"
+              value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" />
+          </div>
+          {error && <p className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-md px-3 py-2">{error}</p>}
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onCancel} className="flex-1 border border-line rounded-md p-2.5 font-medium text-ink-muted hover:text-ink transition-colors">Cancel</button>
+            <button type="submit" disabled={submitting} className="flex-1 bg-accent-green text-white rounded-md p-2.5 font-medium hover:bg-accent-green/90 transition-colors disabled:opacity-60">
+              {submitting ? 'Verifying…' : 'Confirm Resolved'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function Safety({ user }) {
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [analyzing, setAnalyzing] = useState(false)
-  const [aiSuggestion, setAiSuggestion] = useState(null)
   const [error, setError] = useState('')
   const [file, setFile] = useState(null)
   const [description, setDescription] = useState('')
   const [location, setLocation] = useState('')
   const [severity, setSeverity] = useState('Medium')
   const [lightbox, setLightbox] = useState(null)
+  const [aiOpen, setAiOpen] = useState({})
+  const [analyzingId, setAnalyzingId] = useState(null)
+  const [resolvingReport, setResolvingReport] = useState(null)
 
   async function loadReports() {
     setLoading(true)
@@ -77,28 +130,6 @@ export default function Safety({ user }) {
   }
 
   useEffect(() => { loadReports() }, [])
-
-  async function handleFileChange(e) {
-    const selected = e.target.files[0]
-    setFile(selected)
-    setAiSuggestion(null)
-    if (!selected) return
-    setAnalyzing(true)
-    try {
-      const result = await analyzeHazard(selected)
-      setAiSuggestion(result)
-    } catch (err) {
-      // Silent fail is fine here — AI suggestion is a bonus, not required to submit
-      setAiSuggestion(null)
-    }
-    setAnalyzing(false)
-  }
-
-  function applySuggestion() {
-    if (!aiSuggestion) return
-    setDescription(aiSuggestion.hazard + (aiSuggestion.measures?.length ? `\n\nSuggested measures:\n- ${aiSuggestion.measures.join('\n- ')}` : ''))
-    if (aiSuggestion.severity) setSeverity(aiSuggestion.severity)
-  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -128,14 +159,37 @@ export default function Safety({ user }) {
     setDescription('')
     setLocation('')
     setSeverity('Medium')
-    setAiSuggestion(null)
     setShowForm(false)
     loadReports()
   }
 
-  async function toggleResolved(report) {
-    const nextStatus = report.status === 'open' ? 'resolved' : 'open'
-    await supabase.from('safety_reports').update({ status: nextStatus }).eq('id', report.id)
+  async function handleAiClick(report) {
+    setAiOpen((prev) => ({ ...prev, [report.id]: !prev[report.id] }))
+    if (report.ai_analyzed) return
+    setAnalyzingId(report.id)
+    try {
+      const result = await analyzeHazardFromUrl(report.photo_url)
+      await supabase.from('safety_reports').update({
+        ai_hazard: result.hazard,
+        ai_severity: result.severity,
+        ai_measures: JSON.stringify(result.measures || []),
+        ai_analyzed: true,
+      }).eq('id', report.id)
+      loadReports()
+    } catch (err) {
+      setError('AI analysis failed — try again in a moment.')
+    }
+    setAnalyzingId(null)
+  }
+
+  async function handleResolveConfirm(employeeId) {
+    const report = resolvingReport
+    await supabase.from('safety_reports').update({
+      status: 'resolved',
+      resolved_by: employeeId,
+      resolved_at: new Date().toISOString(),
+    }).eq('id', report.id)
+    setResolvingReport(null)
     loadReports()
   }
 
@@ -143,6 +197,10 @@ export default function Safety({ user }) {
 
   return (
     <div>
+      {resolvingReport && (
+        <ResolveModal report={resolvingReport} onCancel={() => setResolvingReport(null)} onConfirm={handleResolveConfirm} />
+      )}
+
       {lightbox && (
         <div className="fixed inset-0 bg-ink/80 backdrop-blur-sm flex items-center justify-center p-6 z-50" onClick={() => setLightbox(null)}>
           <button className="absolute top-6 right-6 text-white font-mono text-sm uppercase tracking-wider" onClick={() => setLightbox(null)}>
@@ -176,29 +234,9 @@ export default function Safety({ user }) {
               type="file"
               accept="image/*"
               className="w-full border border-line rounded-md p-2.5 mt-1 bg-canvas text-sm"
-              onChange={handleFileChange}
+              onChange={(e) => setFile(e.target.files[0])}
             />
           </div>
-
-          {analyzing && (
-            <p className="font-mono text-xs text-ink-muted animate-pulse">Analyzing photo with AI…</p>
-          )}
-
-          {aiSuggestion && !analyzing && (
-            <div className="rounded-lg p-3" style={{ backgroundColor: `${MENTOR_COLOR}0D`, border: `1px solid ${MENTOR_COLOR}40` }}>
-              <p className="font-mono text-[10px] uppercase tracking-wider mb-1" style={{ color: MENTOR_COLOR }}>AI Suggestion</p>
-              <p className="text-sm text-ink">{aiSuggestion.hazard}</p>
-              {aiSuggestion.measures?.length > 0 && (
-                <ul className="text-xs text-ink-muted mt-1.5 list-disc pl-4 space-y-0.5">
-                  {aiSuggestion.measures.map((m, i) => <li key={i}>{m}</li>)}
-                </ul>
-              )}
-              <button type="button" onClick={applySuggestion} className="mt-2 text-xs font-medium px-3 py-1.5 rounded-md text-white" style={{ backgroundColor: MENTOR_COLOR }}>
-                Use This Description
-              </button>
-            </div>
-          )}
-
           <div>
             <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">What's the hazard?</label>
             <textarea
@@ -251,43 +289,74 @@ export default function Safety({ user }) {
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {reports.map((r) => (
-            <div key={r.id} className="bg-surface border border-line rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-              <div className="relative cursor-pointer" onClick={() => setLightbox(r.photo_url)}>
-                <img src={r.photo_url} alt="Hazard" className="w-full h-40 object-cover" />
-                <span
-                  className="absolute top-2 left-2 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded text-white"
-                  style={{ backgroundColor: severityColor(r.severity) }}
-                >
-                  {r.severity}
-                </span>
-                {r.status === 'resolved' && (
-                  <span className="absolute top-2 right-2 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-green text-white">
-                    Resolved
+          {reports.map((r) => {
+            const isAiOpen = !!aiOpen[r.id]
+            const isAnalyzing = analyzingId === r.id
+            let measures = []
+            try { measures = r.ai_measures ? JSON.parse(r.ai_measures) : [] } catch { measures = [] }
+
+            return (
+              <div key={r.id} className="bg-surface border border-line rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                <div className="relative cursor-pointer" onClick={() => setLightbox(r.photo_url)}>
+                  <img src={r.photo_url} alt="Hazard" className="w-full h-40 object-cover" />
+                  <span
+                    className="absolute top-2 left-2 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded text-white"
+                    style={{ backgroundColor: severityColor(r.severity) }}
+                  >
+                    {r.severity}
                   </span>
-                )}
+                  {r.status === 'resolved' && (
+                    <span className="absolute top-2 right-2 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-green text-white">
+                      Resolved
+                    </span>
+                  )}
+                </div>
+                <div className="p-4">
+                  <p className="text-sm text-ink">{r.description}</p>
+                  {r.location && <p className="text-xs text-ink-muted mt-1">📍 {r.location}</p>}
+                  <p className="font-mono text-[11px] text-ink-muted mt-2">
+                    {r.reported_by} {r.team && `· ${r.team}`} · {formatTime(r.created_at)}
+                  </p>
+                  {r.status === 'resolved' && r.resolved_by && (
+                    <p className="font-mono text-[11px] text-accent-green mt-1">
+                      Resolved by EHS #{r.resolved_by} · {formatTime(r.resolved_at)}
+                    </p>
+                  )}
+
+                  <button
+                    onClick={() => handleAiClick(r)}
+                    className="mt-3 w-full text-xs font-mono uppercase tracking-wider px-3 py-2 rounded-md border transition-colors"
+                    style={{ borderColor: MENTOR_COLOR, color: MENTOR_COLOR, backgroundColor: isAiOpen ? `${MENTOR_COLOR}15` : 'transparent' }}
+                  >
+                    {isAnalyzing ? 'Analyzing…' : isAiOpen ? 'What to do ? ' : ' what to do now ?'}    
+                  </button>
+
+                  {isAiOpen && !isAnalyzing && r.ai_analyzed && (
+                    <div className="mt-2 rounded-lg p-3" style={{ backgroundColor: `${MENTOR_COLOR}0D`, border: `1px solid ${MENTOR_COLOR}40` }}>
+                      <p className="font-mono text-[10px] uppercase tracking-wider mb-1" style={{ color: MENTOR_COLOR }}>AI Assessment</p>
+                      <p className="text-sm text-ink">{r.ai_hazard}</p>
+                      {measures.length > 0 && (
+                        <ul className="text-xs text-ink-muted mt-1.5 list-disc pl-4 space-y-0.5">
+                          {measures.map((m, i) => <li key={i}>{m}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  {r.status === 'open' && (
+                    <button
+                      onClick={() => setResolvingReport(r)}
+                      className="mt-2 w-full text-xs font-mono uppercase tracking-wider px-3 py-2 rounded-md border border-accent-green text-accent-green hover:bg-accent-green/10 transition-colors"
+                    >
+                      Mark Resolved
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="p-4">
-                <p className="text-sm text-ink whitespace-pre-line">{r.description}</p>
-                {r.location && <p className="text-xs text-ink-muted mt-1">📍 {r.location}</p>}
-                <p className="font-mono text-[11px] text-ink-muted mt-2">
-                  {r.reported_by} {r.team && `· ${r.team}`} · {formatTime(r.created_at)}
-                </p>
-                <button
-                  onClick={() => toggleResolved(r)}
-                  className={`mt-3 w-full text-xs font-mono uppercase tracking-wider px-3 py-2 rounded-md border transition-colors ${
-                    r.status === 'open'
-                      ? 'border-accent-green text-accent-green hover:bg-accent-green/10'
-                      : 'border-line text-ink-muted hover:text-ink'
-                  }`}
-                >
-                  {r.status === 'open' ? 'Mark Resolved' : 'Reopen'}
-                </button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
   )
-}       
+}    
