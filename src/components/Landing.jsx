@@ -80,7 +80,7 @@ export default function Landing({ onEnter }) {
 
       <div className="max-w-5xl mx-auto px-6 py-16">
         <p className="font-mono text-xs uppercase tracking-wider text-ink-muted mb-2 text-center">
-          Built for the fab floor
+          ONE TEAM ONE DREAM ONE SEMI   
         </p>
         <h2 className="text-2xl font-semibold text-center mb-10">
           Visibility, accountability, escalation, closure.
@@ -104,7 +104,7 @@ export default function Landing({ onEnter }) {
 
       <div className="border-t border-line py-8 text-center">
         <p className="font-mono text-xs text-ink-muted">
-          Built for the New Joinee Pilot · 5 Teams · 34 Engineers
+          Dholera Ahmedabad India 
         </p>
       </div>
     </div>
