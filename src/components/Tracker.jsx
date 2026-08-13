@@ -328,7 +328,7 @@ export default function Tracker({ user, onLogout }) {
         <div className="relative max-w-[1400px] mx-auto px-8 lg:px-12 py-8">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">Dholera · Action Item Tracker</p>
+              <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">ONE TEAM ONE DREAM</p>       
               <h1 className="text-2xl font-semibold text-ink">ETCH</h1>
               <p className="text-ink-muted text-sm mt-1">Centralized log for governance, audit, project & leadership review actions</p>
             </div>
