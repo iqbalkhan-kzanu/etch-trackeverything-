@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
-import Safety from './SafetySection'  
+import Safety from './SafetySection'
 
 const SOURCES = ['governance', 'audit', 'project', 'leadership_review', 'other']
 const STAGES = ['open', 'in_progress', 'ready_to_close', 'closed']
@@ -57,6 +57,15 @@ function StageBar({ status }) {
         <div key={s} className={`h-1.5 flex-1 rounded-sm ${i <= idx ? color : 'bg-line'}`} />
       ))}
     </div>
+  )
+}
+
+function WaferGrid({ className = '', dot = '#14181C', opacity = 'opacity-[0.05]' }) {
+  return (
+    <div
+      className={`pointer-events-none fixed inset-0 ${opacity} ${className}`}
+      style={{ backgroundImage: `radial-gradient(circle at 1px 1px, ${dot} 1px, transparent 0)`, backgroundSize: '20px 20px' }}
+    />
   )
 }
 
@@ -207,14 +216,14 @@ export default function Tracker({ user, onLogout }) {
   const [mentorDraft, setMentorDraft] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [nav, setNav] = useState('all')
+  const [nav, setNav] = useState('mine') // 'mine' | 'general' | 'team' | 'safety'
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterOwner, setFilterOwner] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [closingItem, setClosingItem] = useState(null)
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)  
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [form, setForm] = useState({
-    title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '',
+    title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team',
   })
 
   async function loadItems() {
@@ -237,8 +246,7 @@ export default function Tracker({ user, onLogout }) {
 
   useEffect(() => { loadItems() }, [])
 
-  function goToMine() { setNav('mine'); setFilterOwner(user?.name || ''); setMobileNavOpen(false) }
-  function goToAll() { setNav('all'); setFilterOwner(''); setMobileNavOpen(false) }  
+  function goTo(key) { setNav(key); setMobileNavOpen(false) }
 
   async function handleCreate(e) {
     e.preventDefault()
@@ -247,7 +255,7 @@ export default function Tracker({ user, onLogout }) {
     if (data && data[0]) {
       await supabase.from('item_activity').insert([{ item_id: data[0].id, actor: user?.name || 'Unknown', action: 'created', note: `Logged from ${form.source.replace('_', ' ')}` }])
     }
-    setForm({ title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '' })
+    setForm({ title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team' })
     setShowForm(false)
     loadItems()
   }
@@ -293,23 +301,32 @@ export default function Tracker({ user, onLogout }) {
     loadItems()
   }
 
-  const filtered = items.filter((i) => {
+  const scopedItems = items.filter((i) => {
+    if (nav === 'mine') return i.owner_name === user?.name
+    if (nav === 'general') return i.visibility === 'general'
+    if (nav === 'team') return i.visibility !== 'general' && i.team === user?.team
+    return true
+  })
+
+  const filtered = scopedItems.filter((i) => {
     if (filterStatus !== 'all' && i.status !== filterStatus) return false
     if (filterOwner && !i.owner_name.toLowerCase().includes(filterOwner.toLowerCase())) return false
     return true
   })
 
   const counts = {
-    open: items.filter((i) => i.status === 'open').length,
-    in_progress: items.filter((i) => i.status === 'in_progress').length,
-    ready_to_close: items.filter((i) => i.status === 'ready_to_close').length,
-    closed: items.filter((i) => i.status === 'closed').length,
-    overdue: items.filter(isOverdue).length,
+    open: scopedItems.filter((i) => i.status === 'open').length,
+    in_progress: scopedItems.filter((i) => i.status === 'in_progress').length,
+    ready_to_close: scopedItems.filter((i) => i.status === 'ready_to_close').length,
+    closed: scopedItems.filter((i) => i.status === 'closed').length,
+    overdue: scopedItems.filter(isOverdue).length,
   }
 
-  const navItem = (key, label, onClick) => (
+  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site' }[nav]
+
+  const navItem = (key, label) => (
     <button
-      onClick={onClick}
+      onClick={() => goTo(key)}
       className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
         nav === key ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white hover:bg-white/5'
       }`}
@@ -319,241 +336,220 @@ export default function Tracker({ user, onLogout }) {
   )
 
   return (
-    <div className="min-h-screen flex bg-canvas font-sans text-ink">
+    <div className="min-h-screen flex bg-canvas font-sans text-ink relative">
+      <WaferGrid />
       {closingItem && <ClosureModal item={closingItem} onCancel={() => setClosingItem(null)} onConfirm={handleConfirmClosure} />}
 
-      {mobileNavOpen && (
-        <div className="fixed inset-0 bg-ink/60 z-40 md:hidden" onClick={() => setMobileNavOpen(false)} />
-      )}
+      {mobileNavOpen && <div className="fixed inset-0 bg-ink/60 z-40 md:hidden" onClick={() => setMobileNavOpen(false)} />}
       <aside className={`w-64 shrink-0 bg-ink text-white flex-col justify-between p-6 fixed md:sticky top-0 left-0 h-screen z-50 md:z-auto ${mobileNavOpen ? 'flex' : 'hidden'} md:flex`}>
         <div>
-          <button onClick={() => setMobileNavOpen(false)} className="md:hidden font-mono text-xs uppercase tracking-wider text-white/60 hover:text-white mb-6">
-            ✕ Close
-          </button>
-          <div className="flex items-center gap-2 mb-10">   
+          <button onClick={() => setMobileNavOpen(false)} className="md:hidden font-mono text-xs uppercase tracking-wider text-white/60 hover:text-white mb-6">✕ Close</button>
+          <div className="flex items-center gap-2 mb-10">
             <div className="w-8 h-8 rounded-lg bg-accent-blue flex items-center justify-center font-bold text-sm shrink-0">E</div>
             <span className="text-lg font-bold tracking-tight">ETCH<span className="text-accent-blue">.</span></span>
           </div>
           <p className="font-mono text-[10px] uppercase tracking-wider text-white/30 mb-2 px-3.5">Navigate</p>
           <nav className="space-y-1">
-            {navItem('mine', 'My Tasks', goToMine)}
-            {navItem('all', 'All Items', goToAll)}
-            {navItem('safety', 'Safety at Site', () => { setNav('safety'); setMobileNavOpen(false) })}     
+            {navItem('mine', 'My Tasks')}
+            {navItem('general', 'General')}
+            {navItem('team', 'My Team')}
+            {navItem('safety', 'Safety at Site')}
           </nav>
         </div>
         <div className="border-t border-white/10 pt-4">
           <p className="text-sm font-medium">{user?.name}</p>
           <p className="font-mono text-[11px] uppercase tracking-wider text-white/50">{user?.team}</p>
-          <button onClick={onLogout} className="mt-3 font-mono text-[11px] uppercase tracking-wider text-white/50 hover:text-white transition-colors">
-            Log Out
-          </button>
+          <button onClick={onLogout} className="mt-3 font-mono text-[11px] uppercase tracking-wider text-white/50 hover:text-white transition-colors">Log Out</button>
         </div>
       </aside>
 
-      <div className="flex-1 min-w-0">
-        <div className="border-b border-line bg-surface px-6 md:px-10 py-6 flex items-center justify-between gap-4 flex-wrap sticky top-0 z-10">
+      <div className="flex-1 min-w-0 relative">
+        <div className="border-b border-line bg-surface/95 backdrop-blur-sm px-6 md:px-10 py-6 flex items-center justify-between gap-4 flex-wrap sticky top-0 z-10">
           <div className="min-w-0">
-            <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">ONE TEAM ONE DREAM</p>   
-            <h1 className="text-xl font-semibold text-ink">{nav === 'mine' ? 'My Tasks' : nav === 'safety' ? 'Safety at Site' : 'All Items'}</h1>  
+            <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">ONE TEAM ONE DREAM ONE SEMI</p>   
+            <h1 className="text-xl font-semibold text-ink">{navTitle}</h1>
           </div>
           <div className="flex items-center gap-3 md:hidden">
-            <button onClick={() => setMobileNavOpen(true)} className="border border-line rounded-md px-3 py-2 text-ink">
-              ☰
-            </button>
+            <button onClick={() => setMobileNavOpen(true)} className="border border-line rounded-md px-3 py-2 text-ink bg-surface">☰</button>
             <span className="text-sm font-medium text-ink">{user?.name}</span>
             <button onClick={onLogout} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted border border-line rounded-md px-3 py-2">Log Out</button>
-          </div>     
+          </div>
           {nav !== 'safety' && (
-            <button
-              onClick={() => setShowForm((s) => !s)}
-              className="bg-accent-blue text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-blue/90 transition-colors"
-            >
+            <button onClick={() => setShowForm((s) => !s)} className="bg-accent-blue text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-blue/90 transition-colors">
               {showForm ? 'Cancel' : '+ New Action Item'}
             </button>
-          )}  
+          )}
         </div>
 
-        <div className="px-6 md:px-10 py-8">  
+        <div className="px-6 md:px-10 py-8 relative">
           {nav === 'safety' ? (
             <Safety user={user} />
           ) : (
-          <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-            <StatTile label="Open" value={counts.open} topColor={STATUS_STYLES.open.top} />
-            <StatTile label="In Progress" value={counts.in_progress} topColor={STATUS_STYLES.in_progress.top} />
-            <StatTile label="Awaiting Verify" value={counts.ready_to_close} topColor={STATUS_STYLES.ready_to_close.top} />
-            <StatTile label="Closed" value={counts.closed} topColor={STATUS_STYLES.closed.top} />
-            <StatTile label="Overdue" value={counts.overdue} topColor="#C1443C" />
-          </div>
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+                <StatTile label="Open" value={counts.open} topColor={STATUS_STYLES.open.top} />
+                <StatTile label="In Progress" value={counts.in_progress} topColor={STATUS_STYLES.in_progress.top} />
+                <StatTile label="Awaiting Verify" value={counts.ready_to_close} topColor={STATUS_STYLES.ready_to_close.top} />
+                <StatTile label="Closed" value={counts.closed} topColor={STATUS_STYLES.closed.top} />
+                <StatTile label="Overdue" value={counts.overdue} topColor="#C1443C" />
+              </div>
 
-          {error && <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-lg p-3 mb-4 text-sm font-mono">{error}</div>}
+              {error && <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-lg p-3 mb-4 text-sm font-mono">{error}</div>}
 
-          {showForm && (
-            <form onSubmit={handleCreate} className="bg-surface border border-line rounded-xl p-6 mb-6 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="col-span-1 sm:col-span-2">
-                <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Title</label>
-                <input required className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
-                  value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-              </div>
-              <div className="col-span-1 sm:col-span-2">
-                <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Description</label>
-                <textarea className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
-                  value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-              </div>
-              <div>
-                <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Owner name</label>
-                <input required className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
-                  value={form.owner_name} onChange={(e) => setForm({ ...form, owner_name: e.target.value })} />
-              </div>
-              <div>
-                <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Team</label>
-                <input className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
-                  value={form.team} onChange={(e) => setForm({ ...form, team: e.target.value })} />
-              </div>
-              <div>
-                <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Source</label>
-                <select className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
-                  value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })}>
-                  {SOURCES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+              {showForm && (
+                <form onSubmit={handleCreate} className="bg-surface border border-line rounded-xl p-6 mb-6 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Title</label>
+                    <input required className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
+                      value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+                  </div>
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Description</label>
+                    <textarea className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
+                      value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Owner name</label>
+                    <input required className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
+                      value={form.owner_name} onChange={(e) => setForm({ ...form, owner_name: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Team</label>
+                    <input className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
+                      value={form.team} onChange={(e) => setForm({ ...form, team: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Source</label>
+                    <select className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
+                      value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })}>
+                      {SOURCES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Deadline</label>
+                    <input required type="date" className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
+                      value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
+                  </div>
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Visibility</label>
+                    <select className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
+                      value={form.visibility} onChange={(e) => setForm({ ...form, visibility: e.target.value })}>
+                      <option value="team">My Team Only</option>
+                      <option value="general">General — Visible to Everyone</option>
+                    </select>
+                  </div>
+                  <button type="submit" className="bg-accent-blue text-white rounded-md p-2.5 col-span-1 sm:col-span-2 font-medium hover:bg-accent-blue/90 transition-colors">
+                    Log Action Item
+                  </button>
+                </form>
+              )}
+
+              <div className="flex gap-3 mb-5 flex-wrap">
+                <select className="border border-line rounded-lg p-2.5 text-sm bg-surface shadow-sm" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                  <option value="all">All statuses</option>
+                  {STAGES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
                 </select>
+                <input placeholder="Filter by owner..." className="border border-line rounded-lg p-2.5 text-sm flex-1 min-w-[200px] bg-surface shadow-sm"
+                  value={filterOwner} onChange={(e) => setFilterOwner(e.target.value)} />
               </div>
-              <div>
-                <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Deadline</label>
-                <input required type="date" className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
-                  value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
-              </div>
-              <button type="submit" className="bg-accent-blue text-white rounded-md p-2.5 col-span-1 sm:col-span-2 font-medium hover:bg-accent-blue/90 transition-colors">
-                Log Action Item
-              </button>
-            </form>
-          )}
 
-          <div className="flex gap-3 mb-5 flex-wrap">
-            <select className="border border-line rounded-lg p-2.5 text-sm bg-surface shadow-sm" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-              <option value="all">All statuses</option>
-              {STAGES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-            </select>
-            <input placeholder="Filter by owner..." className="border border-line rounded-lg p-2.5 text-sm flex-1 min-w-[200px] bg-surface shadow-sm"
-              value={filterOwner} onChange={(e) => { setFilterOwner(e.target.value); setNav('all') }} />
-          </div>
+              <div className="grid lg:grid-cols-[1fr_300px] gap-6 items-start">
+                <div>
+                  {loading ? (
+                    <p className="text-ink-muted font-mono text-sm">Loading action items…</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {scopedItems.length === 0 && (
+                        <div className="border border-dashed border-line rounded-xl p-10 text-center bg-surface">
+                          <p className="text-ink font-medium">
+                            {nav === 'general' ? 'No general items yet.' : nav === 'team' ? 'No team items yet.' : 'No action items logged yet.'}
+                          </p>
+                          <p className="text-ink-muted text-sm mt-1">Start by logging the first one from a review, audit, or project discussion.</p>
+                        </div>
+                      )}
+                      {scopedItems.length > 0 && filtered.length === 0 && (
+                        <p className="text-ink-muted text-sm py-6 text-center">No items match these filters.</p>
+                      )}
+                      {filtered.map((item) => {
+                        const style = STATUS_STYLES[item.status]
+                        const overdue = isOverdue(item)
+                        const label = nextActionLabel(item.status)
+                        const isOpen = !!expanded[item.id]
+                        const entries = activity[item.id] || []
+                        const isEditingMentor = !!mentorEditing[item.id]
+                        return (
+                          <div key={item.id} className={`bg-surface border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow border-l-4 ${overdue ? 'border-l-accent-red border-line' : 'border-l-transparent border-line'}`}>
+                            <div className="flex justify-between items-center gap-4 flex-wrap">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium text-ink">{item.title}</span>
+                                  <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-line text-ink-muted">{item.source.replace('_', ' ')}</span>
+                                  {item.visibility === 'general' && (
+                                    <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-blue/10 text-accent-blue">General</span>
+                                  )}
+                                  {overdue && <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-red/10 text-accent-red">Overdue</span>}
+                                </div>
+                                <p className="text-sm text-ink-muted mt-0.5 font-mono">
+                                  {item.owner_name} {item.team && `· ${item.team}`} · due {item.deadline}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <div className="hidden sm:flex flex-col items-end gap-1">
+                                  <span className={`font-mono text-[11px] uppercase tracking-wider px-2 py-0.5 rounded ${style.badge}`}>{STATUS_LABELS[item.status]}</span>
+                                  <StageBar status={item.status} />
+                                </div>
+                                {label && (
+                                  <button onClick={() => advanceStatus(item)} className="text-sm bg-ink text-white px-3 py-1.5 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap">{label}</button>
+                                )}
+                                <button
+                                  onClick={() => (isEditingMentor ? setMentorEditing((p) => ({ ...p, [item.id]: false })) : openMentorEditor(item))}
+                                  className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border transition-colors"
+                                  style={{ borderColor: MENTOR_COLOR, color: MENTOR_COLOR, backgroundColor: isEditingMentor ? `${MENTOR_COLOR}15` : 'transparent' }}
+                                >
+                                  Mentor {item.mentor_comment ? '💬' : ''}
+                                </button>
+                                <button onClick={() => toggleExpanded(item.id)} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted hover:text-accent-blue border border-line rounded-md px-2.5 py-1.5 whitespace-nowrap">
+                                  {isOpen ? 'Hide' : 'Timeline'} ({entries.length})
+                                </button>
+                              </div>
+                            </div>
 
-          <div className="grid lg:grid-cols-[1fr_300px] gap-6 items-start">
-            <div>
-              {loading ? (
-                <p className="text-ink-muted font-mono text-sm">Loading action items…</p>
-              ) : (
-                <div className="space-y-3">
-                  {items.length === 0 && (
-                    <div className="border border-dashed border-line rounded-xl p-10 text-center bg-surface">
-                      <p className="text-ink font-medium">No action items logged yet.</p>
-                      <p className="text-ink-muted text-sm mt-1">Start by logging the first one from a review, audit, or project discussion.</p>
+                            {item.mentor_comment && !isEditingMentor && (
+                              <div className="mt-3 rounded-lg px-3 py-2 text-sm" style={{ backgroundColor: `${MENTOR_COLOR}12`, borderLeft: `3px solid ${MENTOR_COLOR}` }}>
+                                <p className="font-mono text-[10px] uppercase tracking-wider mb-0.5" style={{ color: MENTOR_COLOR }}>Mentor Comment — {item.mentor_by}</p>
+                                <p className="text-ink">{item.mentor_comment}</p>
+                              </div>
+                            )}
+
+                            {isEditingMentor && (
+                              <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: `${MENTOR_COLOR}0D`, border: `1px solid ${MENTOR_COLOR}40` }}>
+                                <textarea autoFocus rows={2} placeholder="Leave a comment on this item's progress…"
+                                  className="w-full bg-surface border border-line rounded-md p-2 text-sm focus:outline-none focus:ring-2"
+                                  value={mentorDraft[item.id] || ''} onChange={(e) => setMentorDraft((p) => ({ ...p, [item.id]: e.target.value }))} />
+                                <div className="flex gap-2 mt-2 justify-end">
+                                  <button onClick={() => setMentorEditing((p) => ({ ...p, [item.id]: false }))} className="text-xs px-3 py-1.5 rounded-md text-ink-muted hover:text-ink">Cancel</button>
+                                  <button onClick={() => saveMentorComment(item)} className="text-xs px-3 py-1.5 rounded-md text-white font-medium" style={{ backgroundColor: MENTOR_COLOR }}>Post Comment</button>
+                                </div>
+                              </div>
+                            )}
+
+                            {isOpen && (
+                              <div className="border-t border-line mt-3">
+                                <Timeline entries={entries} />
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
-                  {items.length > 0 && filtered.length === 0 && (
-                    <p className="text-ink-muted text-sm py-6 text-center">No items match these filters.</p>
-                  )}
-                  {filtered.map((item) => {
-                    const style = STATUS_STYLES[item.status]
-                    const overdue = isOverdue(item)
-                    const label = nextActionLabel(item.status)
-                    const isOpen = !!expanded[item.id]
-                    const entries = activity[item.id] || []
-                    const isEditingMentor = !!mentorEditing[item.id]
-                    return (
-                      <div
-                        key={item.id}
-                        className={`bg-surface border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow border-l-4 ${
-                          overdue ? 'border-l-accent-red border-line' : 'border-l-transparent border-line'
-                        }`}
-                      >
-                        <div className="flex justify-between items-center gap-4 flex-wrap">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium text-ink">{item.title}</span>
-                              <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-line text-ink-muted">
-                                {item.source.replace('_', ' ')}
-                              </span>
-                              {overdue && (
-                                <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-red/10 text-accent-red">Overdue</span>
-                              )}
-                            </div>
-                            <p className="text-sm text-ink-muted mt-0.5 font-mono">
-                              {item.owner_name} {item.team && `· ${item.team}`} · due {item.deadline}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3 shrink-0">
-                            <div className="hidden sm:flex flex-col items-end gap-1">
-                              <span className={`font-mono text-[11px] uppercase tracking-wider px-2 py-0.5 rounded ${style.badge}`}>
-                                {STATUS_LABELS[item.status]}
-                              </span>
-                              <StageBar status={item.status} />
-                            </div>
-                            {label && (
-                              <button onClick={() => advanceStatus(item)} className="text-sm bg-ink text-white px-3 py-1.5 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap">
-                                {label}
-                              </button>
-                            )}
-                            <button
-                              onClick={() => (isEditingMentor ? setMentorEditing((p) => ({ ...p, [item.id]: false })) : openMentorEditor(item))}
-                              className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border transition-colors"
-                              style={{ borderColor: MENTOR_COLOR, color: MENTOR_COLOR, backgroundColor: isEditingMentor ? `${MENTOR_COLOR}15` : 'transparent' }}
-                            >
-                              Mentor {item.mentor_comment ? '💬' : ''}
-                            </button>
-                            <button onClick={() => toggleExpanded(item.id)} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted hover:text-accent-blue border border-line rounded-md px-2.5 py-1.5 whitespace-nowrap">
-                              {isOpen ? 'Hide' : 'Timeline'} ({entries.length})
-                            </button>
-                          </div>
-                        </div>
-
-                        {item.mentor_comment && !isEditingMentor && (
-                          <div className="mt-3 rounded-lg px-3 py-2 text-sm" style={{ backgroundColor: `${MENTOR_COLOR}12`, borderLeft: `3px solid ${MENTOR_COLOR}` }}>
-                            <p className="font-mono text-[10px] uppercase tracking-wider mb-0.5" style={{ color: MENTOR_COLOR }}>
-                              Mentor Comment — {item.mentor_by}
-                            </p>
-                            <p className="text-ink">{item.mentor_comment}</p>
-                          </div>
-                        )}
-
-                        {isEditingMentor && (
-                          <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: `${MENTOR_COLOR}0D`, border: `1px solid ${MENTOR_COLOR}40` }}>
-                            <textarea
-                              autoFocus
-                              rows={2}
-                              placeholder="Leave a comment on this item's progress…"
-                              className="w-full bg-surface border border-line rounded-md p-2 text-sm focus:outline-none focus:ring-2"
-                              style={{ '--tw-ring-color': `${MENTOR_COLOR}40` }}
-                              value={mentorDraft[item.id] || ''}
-                              onChange={(e) => setMentorDraft((p) => ({ ...p, [item.id]: e.target.value }))}
-                            />
-                            <div className="flex gap-2 mt-2 justify-end">
-                              <button onClick={() => setMentorEditing((p) => ({ ...p, [item.id]: false }))} className="text-xs px-3 py-1.5 rounded-md text-ink-muted hover:text-ink">
-                                Cancel
-                              </button>
-                              <button onClick={() => saveMentorComment(item)} className="text-xs px-3 py-1.5 rounded-md text-white font-medium" style={{ backgroundColor: MENTOR_COLOR }}>
-                                Post Comment
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {isOpen && (
-                          <div className="border-t border-line mt-3">
-                            <Timeline entries={entries} />
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
                 </div>
-              )}
-            </div>
-            <OwnerStatusPanel items={items} />
-          </div>
-          </>
+                <OwnerStatusPanel items={scopedItems} />
+              </div>
+            </>
           )}
         </div>
       </div>
     </div>
-  )   
-} 
+  )
+}       
