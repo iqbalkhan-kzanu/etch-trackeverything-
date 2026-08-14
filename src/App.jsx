@@ -20,7 +20,9 @@ export default function App() {
       if (profile) {
         setUser({ id: session.user.id, name: profile.name, team: profile.team, email: session.user.email })
         setView('app')
-      }
+      } else {
+        setView('auth')
+      }     
     }
     setChecking(false)
   }

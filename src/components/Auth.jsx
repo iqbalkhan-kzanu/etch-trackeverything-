@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 
 const TEAMS = ['FMCS', 'HVAC', 'GAS-CHEM', 'UPW', 'ELECTRICAL']
@@ -10,10 +10,10 @@ const STAGES = [
   { label: 'Closed', color: 'bg-accent-green' },
 ]
 
-function WaferGrid({ className = '', dot = '#FFFFFF', opacity = 'opacity-[0.08]' }) {
+function WaferGrid({ className = '', dot = '#FFFFFF' }) {
   return (
     <div
-      className={`pointer-events-none absolute inset-0 ${opacity} ${className}`}
+      className={`pointer-events-none absolute inset-0 opacity-[0.08] ${className}`}
       style={{ backgroundImage: `radial-gradient(circle at 1px 1px, ${dot} 1px, transparent 0)`, backgroundSize: '18px 18px' }}
     />
   )
@@ -28,15 +28,6 @@ function MailIcon({ className }) {
   )
 }
 
-function LockIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="11" width="16" height="9" rx="2" />
-      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-    </svg>
-  )
-}
-
 function UserIcon({ className }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -47,36 +38,49 @@ function UserIcon({ className }) {
 }
 
 export default function Auth({ onAuthenticated, onBack }) {
-  const [mode, setMode] = useState('login')
+  const [step, setStep] = useState('email') // 'email' | 'sent' | 'profile'
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [team, setTeam] = useState(TEAMS[0])
-  const [needsProfile, setNeedsProfile] = useState(false)
   const [pendingId, setPendingId] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  async function handleCredentials(e) {
+  // If we land here after clicking the magic link (session exists but no profile yet),
+  // skip straight to the profile step instead of asking for an email again.
+  useEffect(() => {
+    async function checkExisting() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
+        if (profile) {
+          onAuthenticated({ id: session.user.id, name: profile.name, team: profile.team, email: session.user.email })
+        } else {
+          setEmail(session.user.email)
+          setPendingId(session.user.id)
+          setStep('profile')
+        }
+      }
+    }
+    checkExisting()
+  }, [])
+
+  async function handleSendLink(e) {
     e.preventDefault()
     setError('')
-    setLoading(true)
-    const result = mode === 'signup'
-      ? await supabase.auth.signUp({ email, password })
-      : await supabase.auth.signInWithPassword({ email, password })
-    setLoading(false)
-
-    if (result.error) { setError(result.error.message); return }
-    const userId = result.data.user?.id
-    if (!userId) { setError('Check your inbox to confirm your email, then log in.'); return }
-
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle()
-    if (profile) {
-      onAuthenticated({ id: userId, name: profile.name, team: profile.team, email })
-    } else {
-      setPendingId(userId)
-      setNeedsProfile(true)
+    const trimmed = email.trim()
+    if (!trimmed) {
+      setError('Enter a valid email address.')
+      return
     }
+    setLoading(true)
+    const { error } = await supabase.auth.signInWithOtp({
+      email: trimmed,
+      options: { shouldCreateUser: true, emailRedirectTo: window.location.origin },
+    })
+    setLoading(false)
+    if (error) { setError(error.message); return }
+    setStep('sent')
   }
 
   async function handleProfile(e) {
@@ -93,9 +97,7 @@ export default function Auth({ onAuthenticated, onBack }) {
     <div className="min-h-screen grid lg:grid-cols-2 font-sans">
       <div className="relative bg-ink text-white hidden lg:flex flex-col justify-between p-12 overflow-hidden">
         <WaferGrid />
-        <button onClick={onBack} className="relative font-mono text-xs uppercase tracking-wider text-white/60 hover:text-white flex items-center gap-1 w-fit">
-          ← Back
-        </button>
+        <button onClick={onBack} className="relative font-mono text-xs uppercase tracking-wider text-white/60 hover:text-white flex items-center gap-1 w-fit">← Back</button>
         <div className="relative">
           <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-3">Tata Electronics · Dholera Fab</p>
           <h1 className="text-6xl font-bold tracking-tight">ETCH<span className="text-accent-blue">.</span></h1>
@@ -112,11 +114,11 @@ export default function Auth({ onAuthenticated, onBack }) {
             ))}
           </div>
         </div>
-        <p className="relative font-mono text-[11px] text-white/40">Open to everyone on site</p>
+        <p className="relative font-mono text-[11px] text-white/40">Open to the New Joinee Pilot</p>
       </div>
 
       <div className="relative bg-canvas flex items-center justify-center px-6 py-16 overflow-hidden">
-        <WaferGrid dot="#14181C" opacity="opacity-[0.04]" />
+        <WaferGrid dot="#14181C" />
         <div className="lg:hidden absolute top-6 left-6 z-10">
           <button onClick={onBack} className="font-mono text-xs uppercase tracking-wider text-ink-muted hover:text-ink flex items-center gap-1">← Back</button>
         </div>
@@ -125,51 +127,48 @@ export default function Auth({ onAuthenticated, onBack }) {
           <div className="relative bg-surface border border-line rounded-2xl p-8 shadow-sm overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-1 bg-accent-blue" />
 
-            {!needsProfile ? (
+            {step === 'email' && (
               <>
                 <div className="w-11 h-11 rounded-xl bg-accent-blue/10 text-accent-blue flex items-center justify-center mb-5">
-                  <LockIcon className="w-5 h-5" />
+                  <MailIcon className="w-5 h-5" />
                 </div>
-                <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">
-                  {mode === 'signup' ? 'Create Account' : 'Sign In'}
-                </p>
-                <h2 className="text-2xl font-semibold text-ink mb-6">
-                  {mode === 'signup' ? 'Join ETCH' : 'Welcome back'}
-                </h2>
-                <form onSubmit={handleCredentials} className="space-y-4">
+                <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">Sign In</p>
+                <h2 className="text-2xl font-semibold text-ink mb-1">Enter your email</h2>
+                <p className="text-sm text-ink-muted mb-6">We'll email you a sign-in link — no password needed.</p>
+                <form onSubmit={handleSendLink} className="space-y-4">
                   <div>
                     <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Email</label>
                     <div className="relative mt-1.5">
                       <MailIcon className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input required type="email" className="w-full border border-line rounded-md p-3 pl-10 bg-canvas focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
+                      <input required type="email" autoFocus className="w-full border border-line rounded-md p-3 pl-10 bg-canvas focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
                         value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Password</label>
-                    <div className="relative mt-1.5">
-                      <LockIcon className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input required type="password" minLength={6} className="w-full border border-line rounded-md p-3 pl-10 bg-canvas focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
-                        value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
                     </div>
                   </div>
                   {error && <p className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-md px-3 py-2">{error}</p>}
                   <button type="submit" disabled={loading} className="w-full bg-accent-blue text-white rounded-md p-3 font-medium hover:bg-accent-blue/90 transition-colors disabled:opacity-60">
-                    {loading ? 'Please wait…' : mode === 'signup' ? 'Create Account' : 'Enter ETCH'}
+                    {loading ? 'Sending link…' : 'Send Sign-In Link'}
                   </button>
                 </form>
-                <p className="text-sm text-ink-muted mt-5 text-center">
-                  {mode === 'signup' ? 'Already have an account?' : "Don't have an account yet?"}{' '}
-                  <button onClick={() => { setMode(mode === 'signup' ? 'login' : 'signup'); setError('') }} className="text-accent-blue font-medium hover:underline">
-                    {mode === 'signup' ? 'Sign in' : 'Create one'}
-                  </button>
-                </p>
-                <div className="flex items-center gap-1.5 justify-center mt-5 pt-5 border-t border-line">
-                  <LockIcon className="w-3 h-3 text-ink-muted" />
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">Secure sign-in</p>
-                </div>
               </>
-            ) : (
+            )}
+
+            {step === 'sent' && (
+              <>
+                <div className="w-11 h-11 rounded-xl bg-accent-blue/10 text-accent-blue flex items-center justify-center mb-5">
+                  <MailIcon className="w-5 h-5" />
+                </div>
+                <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">Check Your Inbox</p>
+                <h2 className="text-2xl font-semibold text-ink mb-1">Link sent</h2>
+                <p className="text-sm text-ink-muted mb-6">
+                  We sent a sign-in link to <span className="text-ink font-medium">{email}</span>. Open your email and click it to continue — this tab will pick it up automatically.
+                </p>
+                <button onClick={() => { setStep('email'); setError('') }} className="w-full text-sm text-ink-muted hover:text-ink border border-line rounded-md p-2.5">
+                  Use a different email
+                </button>
+              </>
+            )}
+
+            {step === 'profile' && (
               <>
                 <div className="w-11 h-11 rounded-xl bg-accent-green/10 text-accent-green flex items-center justify-center mb-5">
                   <UserIcon className="w-5 h-5" />
@@ -182,7 +181,7 @@ export default function Auth({ onAuthenticated, onBack }) {
                     <div className="relative mt-1.5">
                       <UserIcon className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2" />
                       <input required autoFocus className="w-full border border-line rounded-md p-3 pl-10 bg-canvas focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
-                        value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Vaibhav Awasthi" />
+                        value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Aniket Singh" />
                     </div>
                   </div>
                   <div>
@@ -204,4 +203,4 @@ export default function Auth({ onAuthenticated, onBack }) {
       </div>
     </div>
   )
-}       
+}    

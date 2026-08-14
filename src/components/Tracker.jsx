@@ -60,14 +60,21 @@ function StageBar({ status }) {
   )
 }
 
-function WaferGrid({ className = '', dot = '#14181C', opacity = 'opacity-[0.05]' }) {
+function WaferGrid({ className = '' }) {
   return (
     <div
-      className={`pointer-events-none fixed inset-0 ${opacity} ${className}`}
-      style={{ backgroundImage: `radial-gradient(circle at 1px 1px, ${dot} 1px, transparent 0)`, backgroundSize: '20px 20px' }}
+      className={`pointer-events-none fixed inset-0 ${className}`}
+      style={{
+        backgroundImage: `
+          repeating-linear-gradient(90deg, rgba(43,108,176,0.07) 0px, rgba(43,108,176,0.07) 1px, transparent 1px, transparent 48px),
+          repeating-linear-gradient(0deg, rgba(43,108,176,0.07) 0px, rgba(43,108,176,0.07) 1px, transparent 1px, transparent 48px),
+          radial-gradient(circle at 24px 24px, rgba(20,24,28,0.10) 1.5px, transparent 0)
+        `,
+        backgroundSize: '48px 48px, 48px 48px, 48px 48px',
+      }}
     />
   )
-}
+}      
 
 function StatTile({ label, value, topColor }) {
   return (
@@ -333,10 +340,10 @@ export default function Tracker({ user, onLogout }) {
     >
       {label}
     </button>
-  )
+  )         
 
   return (
-    <div className="min-h-screen flex bg-canvas font-sans text-ink relative">
+    <div className="min-h-screen flex bg-gradient-to-br from-[#EEF3F8] via-[#F5F7F9] to-[#E7ECF2] font-sans text-ink relative"> 
       <WaferGrid />
       {closingItem && <ClosureModal item={closingItem} onCancel={() => setClosingItem(null)} onConfirm={handleConfirmClosure} />}
 
