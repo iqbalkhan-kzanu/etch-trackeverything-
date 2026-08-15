@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { supabase } from '../supabaseClient'
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 const TEAM_META = {
   FMCS: { color: '#2B6CB0' },
@@ -22,13 +25,10 @@ const STAGES = [
 
 function WaferGrid({ className = '', dot = '#FFFFFF', opacity = 'opacity-[0.08]' }) {
   return (
-    <div
-      className={`pointer-events-none absolute inset-0 ${opacity} ${className}`}
-      style={{ backgroundImage: `radial-gradient(circle at 1px 1px, ${dot} 1px, transparent 0)`, backgroundSize: '18px 18px' }}
-    />
+    <div className={`pointer-events-none absolute inset-0 ${opacity} ${className}`}
+      style={{ backgroundImage: `radial-gradient(circle at 1px 1px, ${dot} 1px, transparent 0)`, backgroundSize: '18px 18px' }} />
   )
 }
-
 function MailIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>)
 }
@@ -38,44 +38,23 @@ function UserIcon({ className }) {
 function IdIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="8" cy="12" r="2" /><path d="M13 10h6M13 14h4" /></svg>)
 }
+function KeyIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="15" r="4" /><path d="M10.5 12.5 20 3M17 6l3 3M14 9l2 2" /></svg>)
+}
 function ArrowIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>)
 }
 
 export default function Auth({ onAuthenticated, onBack }) {
-  const [step, setStep] = useState('choice') // 'choice' | 'form' | 'sent'
-  const [mode, setMode] = useState(null) // 'login' | 'signup'
+  const [step, setStep] = useState('choice') // 'choice' | 'form' | 'otp'
+  const [mode, setMode] = useState(null)
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [employeeId, setEmployeeId] = useState('')
   const [team, setTeam] = useState('')
+  const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [checking, setChecking] = useState(true)
-
-  useEffect(() => {
-    async function checkExisting() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
-        if (profile) {
-          onAuthenticated({ id: session.user.id, name: profile.name, team: profile.team, email: session.user.email })
-        } else {
-          const meta = session.user.user_metadata || {}
-          if (meta.name && meta.team) {
-            const { error } = await supabase.from('profiles').insert([{
-              id: session.user.id, name: meta.name, team: meta.team, employee_id: meta.employee_id || null, email: session.user.email,
-            }])
-            if (!error) {
-              onAuthenticated({ id: session.user.id, name: meta.name, team: meta.team, email: session.user.email })
-            }
-          }
-        }
-      }
-      setChecking(false)
-    }
-    checkExisting()
-  }, [])
 
   function pickMode(m) {
     setMode(m)
@@ -83,41 +62,52 @@ export default function Auth({ onAuthenticated, onBack }) {
     setError('')
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError('')
-    if (mode === 'signup') {
-      if (!name.trim() || !employeeId.trim() || !team || !email.trim()) {
-        setError('Please fill in every field.')
-        return
-      }
-    } else if (!email.trim()) {
-      setError('Enter your email.')
-      return
-    }
-
-    setLoading(true)
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: {
-        shouldCreateUser: mode === 'signup',
-        emailRedirectTo: window.location.origin,
-        data: mode === 'signup' ? { name: name.trim(), team, employee_id: employeeId.trim() } : undefined,
-      },
+  async function callFunction(name, body) {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ANON_KEY}` },
+      body: JSON.stringify(body),
     })
-    setLoading(false)
-    if (error) {
-      if (mode === 'login' && /signup/i.test(error.message)) {
-        setError('No account found with this email — try Create Account instead.')
-      } else {
-        setError(error.message)
-      }
-      return
-    }
-    setStep('sent')
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Something went wrong.')
+    return data
   }
 
-  if (checking) return <div className="min-h-screen bg-canvas" />
+  async function handleRequestCode(e) {
+    e.preventDefault()
+    setError('')
+    if (mode === 'signup' && (!name.trim() || !employeeId.trim() || !team)) {
+      setError('Please fill in every field.')
+      return
+    }
+    if (!email.trim()) { setError('Enter your email.'); return }
+
+    setLoading(true)
+    try {
+      await callFunction('request-otp', { email: email.trim(), mode, name, employeeId, team })
+      setStep('otp')
+    } catch (err) {
+      setError(err.message)
+    }
+    setLoading(false)
+  }
+
+  async function handleVerifyCode(e) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      const result = await callFunction('verify-otp', { email: email.trim(), code: code.trim(), mode })
+      const { error: sessionError } = await supabase.auth.verifyOtp({
+        email: email.trim(), token: result.token_hash, type: 'magiclink',
+      })
+      if (sessionError) throw sessionError
+      onAuthenticated({ name: result.profile.name, team: result.profile.team, email: email.trim() })
+    } catch (err) {
+      setError(err.message)
+    }
+    setLoading(false)
+  }
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 font-sans">
@@ -158,24 +148,12 @@ export default function Auth({ onAuthenticated, onBack }) {
                 <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">Welcome</p>
                 <h2 className="text-2xl font-semibold text-ink mb-6">Do you already have an account?</h2>
                 <div className="space-y-3">
-                  <button
-                    onClick={() => pickMode('login')}
-                    className="w-full flex items-center justify-between border border-line rounded-xl p-4 hover:border-accent-blue hover:bg-accent-blue/5 transition-colors text-left"
-                  >
-                    <div>
-                      <p className="font-medium text-ink">I have an account</p>
-                      <p className="text-xs text-ink-muted mt-0.5">Sign in with your email</p>
-                    </div>
+                  <button onClick={() => pickMode('login')} className="w-full flex items-center justify-between border border-line rounded-xl p-4 hover:border-accent-blue hover:bg-accent-blue/5 transition-colors text-left">
+                    <div><p className="font-medium text-ink">I have an account</p><p className="text-xs text-ink-muted mt-0.5">Sign in with your email</p></div>
                     <ArrowIcon className="w-4 h-4 text-ink-muted" />
                   </button>
-                  <button
-                    onClick={() => pickMode('signup')}
-                    className="w-full flex items-center justify-between border border-line rounded-xl p-4 hover:border-accent-green hover:bg-accent-green/5 transition-colors text-left"
-                  >
-                    <div>
-                      <p className="font-medium text-ink">Create a new account</p>
-                      <p className="text-xs text-ink-muted mt-0.5">First time here — set up your profile</p>
-                    </div>
+                  <button onClick={() => pickMode('signup')} className="w-full flex items-center justify-between border border-line rounded-xl p-4 hover:border-accent-green hover:bg-accent-green/5 transition-colors text-left">
+                    <div><p className="font-medium text-ink">Create a new account</p><p className="text-xs text-ink-muted mt-0.5">First time here — set up your profile</p></div>
                     <ArrowIcon className="w-4 h-4 text-ink-muted" />
                   </button>
                 </div>
@@ -188,7 +166,7 @@ export default function Auth({ onAuthenticated, onBack }) {
                 <div className="w-11 h-11 rounded-xl bg-accent-blue/10 text-accent-blue flex items-center justify-center mb-5"><MailIcon className="w-5 h-5" /></div>
                 <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">Sign In</p>
                 <h2 className="text-2xl font-semibold text-ink mb-6">Enter your email</h2>
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleRequestCode} className="space-y-4">
                   <div>
                     <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Email</label>
                     <div className="relative mt-1.5">
@@ -199,7 +177,7 @@ export default function Auth({ onAuthenticated, onBack }) {
                   </div>
                   {error && <p className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-md px-3 py-2">{error}</p>}
                   <button type="submit" disabled={loading} className="w-full bg-accent-blue text-white rounded-md p-3 font-medium hover:bg-accent-blue/90 transition-colors disabled:opacity-60">
-                    {loading ? 'Sending link…' : 'Send Verification Link'}
+                    {loading ? 'Sending code…' : 'Send Code'}
                   </button>
                 </form>
               </>
@@ -211,7 +189,7 @@ export default function Auth({ onAuthenticated, onBack }) {
                 <div className="w-11 h-11 rounded-xl bg-accent-green/10 text-accent-green flex items-center justify-center mb-5"><UserIcon className="w-5 h-5" /></div>
                 <p className="font-mono text-xs uppercase tracking-wider text-accent-green mb-1">Create Account</p>
                 <h2 className="text-2xl font-semibold text-ink mb-6">Set up your profile</h2>
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleRequestCode} className="space-y-4">
                   <div>
                     <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Full Name</label>
                     <div className="relative mt-1.5">
@@ -232,17 +210,8 @@ export default function Auth({ onAuthenticated, onBack }) {
                     <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Team</label>
                     <div className="grid grid-cols-2 gap-2 mt-1.5">
                       {TEAMS.map((t) => (
-                        <button
-                          type="button"
-                          key={t}
-                          onClick={() => setTeam(t)}
-                          className="text-xs font-medium px-3 py-2.5 rounded-md border transition-colors text-left"
-                          style={
-                            team === t
-                              ? { borderColor: TEAM_META[t].color, backgroundColor: `${TEAM_META[t].color}15`, color: TEAM_META[t].color }
-                              : { borderColor: '#E1E5EA', color: '#14181C' }
-                          }
-                        >
+                        <button type="button" key={t} onClick={() => setTeam(t)} className="text-xs font-medium px-3 py-2.5 rounded-md border transition-colors text-left"
+                          style={team === t ? { borderColor: TEAM_META[t].color, backgroundColor: `${TEAM_META[t].color}15`, color: TEAM_META[t].color } : { borderColor: '#E1E5EA', color: '#14181C' }}>
                           {t}
                         </button>
                       ))}
@@ -258,23 +227,31 @@ export default function Auth({ onAuthenticated, onBack }) {
                   </div>
                   {error && <p className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-md px-3 py-2">{error}</p>}
                   <button type="submit" disabled={loading} className="w-full bg-accent-green text-white rounded-md p-3 font-medium hover:bg-accent-green/90 transition-colors disabled:opacity-60">
-                    {loading ? 'Sending link…' : 'Create Account'}
+                    {loading ? 'Sending code…' : 'Send Code'}
                   </button>
                 </form>
               </>
             )}
 
-            {step === 'sent' && (
+            {step === 'otp' && (
               <>
-                <div className="w-11 h-11 rounded-xl bg-accent-blue/10 text-accent-blue flex items-center justify-center mb-5"><MailIcon className="w-5 h-5" /></div>
-                <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">Check Your Inbox</p>
-                <h2 className="text-2xl font-semibold text-ink mb-1">Verification link sent</h2>
-                <p className="text-sm text-ink-muted mb-6">
-                  We sent a one-time verification link to <span className="text-ink font-medium">{email}</span>. Open it on this device to continue — this tab will pick it up automatically.
-                </p>
-                <button onClick={() => { setStep('choice'); setError(''); setMode(null) }} className="w-full text-sm text-ink-muted hover:text-ink border border-line rounded-md p-2.5">
-                  Start over
-                </button>
+                <button onClick={() => setStep('form')} className="font-mono text-xs uppercase tracking-wider text-ink-muted hover:text-ink mb-4 flex items-center gap-1">← Back</button>
+                <div className="w-11 h-11 rounded-xl bg-accent-blue/10 text-accent-blue flex items-center justify-center mb-5"><KeyIcon className="w-5 h-5" /></div>
+                <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">Verify</p>
+                <h2 className="text-2xl font-semibold text-ink mb-1">Enter the code</h2>
+                <p className="text-sm text-ink-muted mb-6">Sent to {email}. Check your inbox.</p>
+                <form onSubmit={handleVerifyCode} className="space-y-4">
+                  <div>
+                    <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">6-digit code</label>
+                    <input required autoFocus inputMode="numeric" maxLength={6}
+                      className="w-full border border-line rounded-md p-3 mt-1.5 bg-canvas text-center text-xl tracking-[0.5em] font-mono focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
+                      value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} placeholder="000000" />
+                  </div>
+                  {error && <p className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-md px-3 py-2">{error}</p>}
+                  <button type="submit" disabled={loading} className="w-full bg-accent-blue text-white rounded-md p-3 font-medium hover:bg-accent-blue/90 transition-colors disabled:opacity-60">
+                    {loading ? 'Verifying…' : 'Verify & Continue'}
+                  </button>
+                </form>
               </>
             )}
           </div>
@@ -282,4 +259,4 @@ export default function Auth({ onAuthenticated, onBack }) {
       </div>
     </div>
   )
-}      
+}     
