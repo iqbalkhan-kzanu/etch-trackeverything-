@@ -22,7 +22,7 @@ export default function App() {
         setView('app')
       } else {
         setView('auth')
-      }     
+      }
     }
     setChecking(false)
   }
@@ -43,4 +43,4 @@ export default function App() {
   if (view === 'landing') return <Landing onEnter={() => setView('auth')} />
   if (view === 'auth') return <Auth onAuthenticated={handleAuthenticated} onBack={() => setView('landing')} />
   return <Tracker user={user} onLogout={handleLogout} />
-}     
+}  
