@@ -97,12 +97,25 @@ export default function Auth({ onAuthenticated, onBack }) {
     setError('')
     setLoading(true)
     try {
-      const result = await callFunction('verify-otp', { email: email.trim(), code: code.trim(), mode })
-      const { error: sessionError } = await supabase.auth.verifyOtp({
-        email: email.trim(), token: result.token_hash, type: 'magiclink',
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: code.trim(),
+        type: 'email',
       })
-      if (sessionError) throw sessionError
-      onAuthenticated({ name: result.profile.name, team: result.profile.team, email: email.trim() })
+      if (error) throw error
+
+      const userId = data.user.id
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle()
+
+      if (profile) {
+        onAuthenticated({ name: profile.name, team: profile.team, email: email.trim() })
+      } else {
+        const meta = data.user.user_metadata || {}
+        await supabase.from('profiles').insert([{
+          id: userId, name: meta.name, team: meta.team, employee_id: meta.employee_id, email: email.trim(),
+        }])
+        onAuthenticated({ name: meta.name, team: meta.team, email: email.trim() })
+      }
     } catch (err) {
       setError(err.message)
     }
@@ -259,4 +272,4 @@ export default function Auth({ onAuthenticated, onBack }) {
       </div>
     </div>
   )
-}     
+}      
