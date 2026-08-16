@@ -17,8 +17,8 @@ const TEAM_META = {
 const TEAMS = Object.keys(TEAM_META)
 
 const ROLE_META = {
-  GET: { color: '#2B6CB0', desc: 'Team member — receives assigned work' },
-  MANAGER: { color: '#7C5CBF', desc: 'Team lead — can assign work to your team' },
+  GET: { color: '#2B6CB0', desc: 'Do the job ' },
+  MANAGER: { color: '#7C5CBF', desc: 'Make sure the job is done ' },       
 }
 const ROLES = Object.keys(ROLE_META)
 
@@ -351,11 +351,11 @@ export default function Auth({ onAuthenticated, onBack }) {
           <div className="mt-10 flex items-center gap-3">
             <WaferBadge size={44} spinning={loading} accent={flow.accent} />
             <p className="font-mono text-[10px] uppercase tracking-wider text-white/30 leading-relaxed">
-              Identity Gateway<br />Session · {screen === 'choice' ? 'Idle' : loading ? 'Verifying' : 'Awaiting Input'}
+              MADE IN INDIA <br /> DHOLERA  · {screen === 'choice' ? 'Idle' : loading ? 'Verifying' : 'Awaiting Input'}
             </p>
           </div>
 
-          <div className="mt-10 flex items-center gap-2 max-w-sm">
+          <div className="mt-10 flex items-center gap-2 max-w-sm">     
             {STAGES.map((s, i) => (
               <div key={s.label} className="flex items-center gap-2 flex-1">
                 <div className="flex-1">
@@ -367,7 +367,7 @@ export default function Auth({ onAuthenticated, onBack }) {
             ))}
           </div>
         </div>
-        <p className="relative font-mono text-[11px] text-white/40">New Joinee Pilot · 8 Teams</p>
+        <p className="relative font-mono text-[11px] text-white/40">MADE IN INDIA </p>     
       </div>
 
       {/* RIGHT — auth card */}
@@ -609,4 +609,4 @@ export default function Auth({ onAuthenticated, onBack }) {
       </div>
     </div>
   )
-}       
+}        
