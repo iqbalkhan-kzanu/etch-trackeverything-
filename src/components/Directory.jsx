@@ -12,7 +12,7 @@ const TEAM_META = {
   MODULE: { color: '#5C6670' },
 }
 
-export default function Directory() {
+export default function Directory({ currentUser, onMessage }) {
   const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -59,14 +59,25 @@ export default function Directory() {
                 </div>
                 <div className="divide-y divide-line">
                   {members.map((m) => (
-                    <div key={m.id} className="flex items-center justify-between px-5 py-3">
-                      <div>
+                    <div key={m.id} className="flex items-center justify-between px-5 py-3 gap-3">
+                      <div className="min-w-0">
                         <p className="font-medium text-ink">{m.name}</p>
                         <p className="text-xs text-ink-muted mt-0.5">{m.email}</p>
                       </div>
-                      <span className="font-mono text-xs text-ink-muted border border-line rounded px-2 py-1">
-                        {m.employee_id || '—'}
-                      </span>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="font-mono text-xs text-ink-muted border border-line rounded px-2 py-1">
+                          {m.employee_id || '—'}
+                        </span>
+                        {currentUser && m.id !== currentUser.id && (
+                          <button
+                            onClick={() => onMessage(m)}
+                            className="text-xs font-medium text-white px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity"
+                            style={{ backgroundColor: color }}
+                          >
+                            Message
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -77,4 +88,4 @@ export default function Directory() {
       )}
     </div>
   )
-}           
+}      

@@ -87,7 +87,7 @@ export default function Auth({ onAuthenticated, onBack }) {
       if (error) throw error
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).maybeSingle()
       if (!profile) throw new Error('Account found but profile is incomplete. Contact an admin.')
-      onAuthenticated({ name: profile.name, team: profile.team, email: email.trim() })
+      onAuthenticated({ id: data.user.id, name: profile.name, team: profile.team, email: email.trim() })  
     } catch (err) {
       setError(err.message)
     }
@@ -141,7 +141,7 @@ export default function Auth({ onAuthenticated, onBack }) {
       await supabase.from('profiles').insert([{
         id: pendingUserId, name: meta.name, team: meta.team, employee_id: meta.employee_id, email: email.trim(),
       }])
-      onAuthenticated({ name: meta.name, team: meta.team, email: email.trim() })
+      onAuthenticated({ id: pendingUserId, name: meta.name, team: meta.team, email: email.trim() })    
     } catch (err) {
       setError(err.message)
     }
@@ -188,7 +188,7 @@ export default function Auth({ onAuthenticated, onBack }) {
       const { error: pwError } = await supabase.auth.updateUser({ password })
       if (pwError) throw pwError
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', pendingUserId).maybeSingle()
-      onAuthenticated({ name: profile?.name, team: profile?.team, email: email.trim() })
+      onAuthenticated({ id: pendingUserId, name: profile?.name, team: profile?.team, email: email.trim() })   
     } catch (err) {
       setError(err.message)
     }
