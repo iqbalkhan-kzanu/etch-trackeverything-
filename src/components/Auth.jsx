@@ -436,5 +436,5 @@ export default function Auth({ onAuthenticated, onBack }) {
         </div>
       </div>
     </div>
-  )
+  )  
 }     

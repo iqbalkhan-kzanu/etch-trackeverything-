@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import Safety from './SafetySection'
-import Directory from './Directory'  
+import Directory from './Directory' 
+import ChatModal from './ChatModal'   
 
 const SOURCES = ['governance', 'audit', 'project', 'leadership_review', 'other']
 const STAGES = ['open', 'in_progress', 'ready_to_close', 'closed']
@@ -225,6 +226,7 @@ export default function Tracker({ user, onLogout }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [nav, setNav] = useState('mine') // 'mine' | 'general' | 'team' | 'safety'
+  const [chatUser, setChatUser] = useState(null)    
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterOwner, setFilterOwner] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -346,7 +348,22 @@ export default function Tracker({ user, onLogout }) {
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-[#EEF3F8] via-[#F5F7F9] to-[#E7ECF2] font-sans text-ink relative"> 
       <WaferGrid />
-      {closingItem && <ClosureModal item={closingItem} onCancel={() => setClosingItem(null)} onConfirm={handleConfirmClosure} />}
+
+{chatUser && (
+  <ChatModal
+    currentUser={user}
+    recipient={chatUser}
+    onClose={() => setChatUser(null)}
+  />
+)}
+
+{closingItem && (
+  <ClosureModal
+    item={closingItem}
+    onCancel={() => setClosingItem(null)}
+    onConfirm={handleConfirmClosure}
+  />
+)}
 
       {mobileNavOpen && <div className="fixed inset-0 bg-ink/60 z-40 md:hidden" onClick={() => setMobileNavOpen(false)} />}
       <aside className={`w-64 shrink-0 bg-ink text-white flex-col justify-between p-6 fixed md:sticky top-0 left-0 h-screen z-50 md:z-auto ${mobileNavOpen ? 'flex' : 'hidden'} md:flex`}>
@@ -394,7 +411,10 @@ export default function Tracker({ user, onLogout }) {
           {nav === 'safety' ? (
             <Safety user={user} /> 
           ) : nav === 'directory' ? (
-            <Directory />
+            <Directory
+              user={user}
+              onMessage={(person) => setChatUser(person)}
+            />    
           ) : (      
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
@@ -563,4 +583,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}       
+}   

@@ -12,7 +12,7 @@ const TEAM_META = {
   MODULE: { color: '#5C6670' },
 }
 
-export default function Directory({ currentUser, onMessage }) {
+export default function Directory({ user, onMessage }) {  
   const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -68,7 +68,7 @@ export default function Directory({ currentUser, onMessage }) {
                         <span className="font-mono text-xs text-ink-muted border border-line rounded px-2 py-1">
                           {m.employee_id || '—'}
                         </span>
-                        {currentUser && m.id !== currentUser.id && (
+                        {user && m.id !== user.id && (   
                           <button
                             onClick={() => onMessage(m)}
                             className="text-xs font-medium text-white px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity"
