@@ -16,6 +16,12 @@ const TEAM_META = {
 }
 const TEAMS = Object.keys(TEAM_META)
 
+const ROLE_META = {
+  GET: { color: '#2B6CB0', desc: 'Team member — receives assigned work' },
+  MANAGER: { color: '#7C5CBF', desc: 'Team lead — can assign work to your team' },
+}
+const ROLES = Object.keys(ROLE_META)
+
 const STAGES = [
   { label: 'Open', color: 'bg-white/30' },
   { label: 'In Progress', color: 'bg-accent-blue' },
@@ -129,6 +135,7 @@ export default function Auth({ onAuthenticated, onBack }) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [name, setName] = useState('')
   const [employeeId, setEmployeeId] = useState('')
+  const [position, setPosition] = useState('')
   const [team, setTeam] = useState('')
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
@@ -162,7 +169,7 @@ export default function Auth({ onAuthenticated, onBack }) {
       if (error) throw error
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).maybeSingle()
       if (!profile) throw new Error('Account found but profile is incomplete. Contact an admin.')
-      onAuthenticated({ id: data.user.id, name: profile.name, team: profile.team, email: email.trim() })
+      onAuthenticated({ id: data.user.id, name: profile.name, team: profile.team, email: email.trim(), role: profile.role })
     } catch (err) {
       setError(err.message)
     }
@@ -173,13 +180,13 @@ export default function Auth({ onAuthenticated, onBack }) {
   async function handleSignupDetails(e) {
     e.preventDefault()
     setError('')
-    if (!name.trim() || !employeeId.trim() || !team || !email.trim()) {
-      setError('Please fill in every field.')
+    if (!name.trim() || !employeeId.trim() || !team || !position || !email.trim()) {
+      setError('Please fill in every field, including your position.')
       return
     }
     setLoading(true)
     try {
-      await callFunction('request-otp', { email: email.trim(), mode: 'signup', name, employeeId, team })
+      await callFunction('request-otp', { email: email.trim(), mode: 'signup', name, employeeId, team, role: position })
       goTo('signup-otp')
     } catch (err) {
       setError(err.message)
@@ -214,9 +221,9 @@ export default function Auth({ onAuthenticated, onBack }) {
       if (pwError) throw pwError
       const meta = pendingMeta || {}
       await supabase.from('profiles').insert([{
-        id: pendingUserId, name: meta.name, team: meta.team, employee_id: meta.employee_id, email: email.trim(),
+        id: pendingUserId, name: meta.name, team: meta.team, employee_id: meta.employee_id, email: email.trim(), role: meta.role || 'GET',
       }])
-      onAuthenticated({ id: pendingUserId, name: meta.name, team: meta.team, email: email.trim() })
+      onAuthenticated({ id: pendingUserId, name: meta.name, team: meta.team, email: email.trim(), role: meta.role || 'GET' })
     } catch (err) {
       setError(err.message)
     }
@@ -263,7 +270,7 @@ export default function Auth({ onAuthenticated, onBack }) {
       const { error: pwError } = await supabase.auth.updateUser({ password })
       if (pwError) throw pwError
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', pendingUserId).maybeSingle()
-      onAuthenticated({ id: pendingUserId, name: profile?.name, team: profile?.team, email: email.trim() })
+      onAuthenticated({ id: pendingUserId, name: profile?.name, team: profile?.team, email: email.trim(), role: profile?.role })
     } catch (err) {
       setError(err.message)
     }
@@ -277,7 +284,7 @@ export default function Auth({ onAuthenticated, onBack }) {
     setResending(true)
     try {
       if (screen === 'signup-otp') {
-        await callFunction('request-otp', { email: email.trim(), mode: 'signup', name, employeeId, team })
+        await callFunction('request-otp', { email: email.trim(), mode: 'signup', name, employeeId, team, role: position })
       } else {
         await callFunction('request-otp', { email: email.trim(), mode: 'reset' })
       }
@@ -468,6 +475,19 @@ export default function Auth({ onAuthenticated, onBack }) {
                     </div>
                   </div>
                   <div>
+                    <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Position</label>
+                    <div className="grid grid-cols-2 gap-2 mt-1.5">
+                      {ROLES.map((r) => (
+                        <button type="button" key={r} onClick={() => setPosition(r)}
+                          className="text-left px-3 py-2.5 rounded-md border transition-colors"
+                          style={position === r ? { borderColor: ROLE_META[r].color, backgroundColor: `${ROLE_META[r].color}15` } : { borderColor: '#E1E5EA' }}>
+                          <p className="text-xs font-semibold" style={{ color: position === r ? ROLE_META[r].color : '#14181C' }}>{r}</p>
+                          <p className="text-[10.5px] text-ink-muted mt-0.5 leading-snug">{ROLE_META[r].desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
                     <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Email</label>
                     <div className="relative mt-1.5">
                       <MailIcon className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2" />
@@ -589,4 +609,4 @@ export default function Auth({ onAuthenticated, onBack }) {
       </div>
     </div>
   )
-}      
+}    

@@ -11,7 +11,7 @@ const TEAM_META = {
   SAFETY: { color: '#E07B39', bg: '#FFF7ED' },
   MODULE: { color: '#5C6670', bg: '#F8FAFC' },
 }
-const MENTOR_COLOR = '#7C5CBF'
+const MANAGER_COLOR = '#7C5CBF'
 
 export default function Directory({ user, onMessage, onAssign }) {
   const [profiles, setProfiles] = useState([])
@@ -74,9 +74,9 @@ export default function Directory({ user, onMessage, onAssign }) {
     return () => clearInterval(interval)
   }, [user?.id])
 
-  // Current user's own profile — used to check mentor status and team
+  // Current user's own profile — used to check manager status and team
   const own = profiles.find((p) => p.id === user?.id)
-  const isMentor = !!own?.is_mentor
+  const isManager = own?.role === 'MANAGER'
 
   // All team names available, regardless of current search — used to populate the team select
   const allTeams = Array.from(
@@ -279,7 +279,7 @@ export default function Directory({ user, onMessage, onAssign }) {
                       user && m.id === user.id
 
                     const canAssign =
-                      isMentor && own?.team === team && !isSelf
+                      isManager && own?.team === team && !isSelf
 
                     return (
                       <div
@@ -330,12 +330,12 @@ export default function Directory({ user, onMessage, onAssign }) {
                                 </span>
                               )}
 
-                              {m.is_mentor && (
+                              {m.role === 'MANAGER' && (
                                 <span
                                   className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                                  style={{ backgroundColor: `${MENTOR_COLOR}15`, color: MENTOR_COLOR }}
+                                  style={{ backgroundColor: `${MANAGER_COLOR}15`, color: MANAGER_COLOR }}
                                 >
-                                  Mentor
+                                  Manager
                                 </span>
                               )}
 
@@ -370,7 +370,7 @@ export default function Directory({ user, onMessage, onAssign }) {
                               <button
                                 onClick={() => onAssign(m)}
                                 className="text-xs font-semibold px-3.5 py-1.5 rounded-lg text-white transition-all hover:opacity-90 active:scale-95"
-                                style={{ backgroundColor: MENTOR_COLOR }}
+                                style={{ backgroundColor: MANAGER_COLOR }}
                               >
                                 Assign Work
                               </button>
@@ -418,4 +418,4 @@ export default function Directory({ user, onMessage, onAssign }) {
 
     </div>
   )
-}      
+}    

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../supabaseClient'
 
-const MENTOR_COLOR = '#7C5CBF'
+const MANAGER_COLOR = '#7C5CBF'
 
 export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned }) {
   const [title, setTitle] = useState('')
@@ -31,14 +31,14 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
 
     if (data && data[0]) {
       await supabase.from('item_activity').insert([{
-        item_id: data[0].id, actor: mentor.name, action: 'created', note: `Assigned by mentor to ${assignee.name}`,
+        item_id: data[0].id, actor: mentor.name, action: 'created', note: `Assigned by manager to ${assignee.name}`,
       }])
     }
 
     await supabase.from('messages').insert([{
       sender_id: mentor.id,
       recipient_id: assignee.id,
-      body: `Your mentor ${mentor.name} has assigned this work to you: "${title.trim()}" — due ${deadline}.`,
+      body: `Your manager ${mentor.name} has assigned this work to you: "${title.trim()}" — due ${deadline}.`,
     }])
 
     setSubmitting(false)
@@ -48,8 +48,8 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
   return (
     <div className="fixed inset-0 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-6 z-50">
       <div className="relative bg-surface border border-line rounded-xl p-6 w-full max-w-md shadow-xl overflow-hidden">
-        <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: MENTOR_COLOR }} />
-        <p className="font-mono text-xs uppercase tracking-wider mb-1" style={{ color: MENTOR_COLOR }}>Mentor Assignment</p>
+        <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: MANAGER_COLOR }} />
+        <p className="font-mono text-xs uppercase tracking-wider mb-1" style={{ color: MANAGER_COLOR }}>Manager Assignment</p>
         <h2 className="text-xl font-semibold text-ink mb-1">Assign work to {assignee.name}</h2>
         <p className="text-sm text-ink-muted mb-5">They'll be notified with a direct message automatically.</p>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -73,7 +73,7 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
             <button type="button" onClick={onCancel} className="flex-1 border border-line rounded-md p-2.5 font-medium text-ink-muted hover:text-ink transition-colors">
               Cancel
             </button>
-            <button type="submit" disabled={submitting} className="flex-1 text-white rounded-md p-2.5 font-medium disabled:opacity-60 hover:opacity-90 transition-opacity" style={{ backgroundColor: MENTOR_COLOR }}>
+            <button type="submit" disabled={submitting} className="flex-1 text-white rounded-md p-2.5 font-medium disabled:opacity-60 hover:opacity-90 transition-opacity" style={{ backgroundColor: MANAGER_COLOR }}>
               {submitting ? 'Assigning…' : 'Assign & Notify'}
             </button>
           </div>
@@ -81,4 +81,4 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
       </div>
     </div>
   )
-}    
+}   
