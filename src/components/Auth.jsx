@@ -255,10 +255,10 @@ export default function Auth({ onAuthenticated, onBack }) {
                 <p className="text-sm text-ink-muted mb-6">Sent to {email}. Check your inbox.</p>
                 <form onSubmit={handleVerifyCode} className="space-y-4">
                   <div>
-                    <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">6-digit code</label>
-                    <input required autoFocus inputMode="numeric" maxLength={6}
-                      className="w-full border border-line rounded-md p-3 mt-1.5 bg-canvas text-center text-xl tracking-[0.5em] font-mono focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
-                      value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} placeholder="000000" />
+                    <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Verification code</label>
+                    <input required autoFocus inputMode="numeric" maxLength={10}
+                      className="w-full border border-line rounded-md p-3 mt-1.5 bg-canvas text-center text-xl tracking-[0.3em] font-mono focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
+                      value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} placeholder="00000000" />
                   </div>
                   {error && <p className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-md px-3 py-2">{error}</p>}
                   <button type="submit" disabled={loading} className="w-full bg-accent-blue text-white rounded-md p-3 font-medium hover:bg-accent-blue/90 transition-colors disabled:opacity-60">
@@ -272,4 +272,4 @@ export default function Auth({ onAuthenticated, onBack }) {
       </div>
     </div>
   )
-}      
+}   
