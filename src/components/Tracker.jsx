@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import Safety from './SafetySection'
+import Directory from './Directory'  
 
 const SOURCES = ['governance', 'audit', 'project', 'leadership_review', 'other']
 const STAGES = ['open', 'in_progress', 'ready_to_close', 'closed']
@@ -329,7 +330,7 @@ export default function Tracker({ user, onLogout }) {
     overdue: scopedItems.filter(isOverdue).length,
   }
 
-  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site' }[nav]
+  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory' }[nav]       
 
   const navItem = (key, label) => (
     <button
@@ -361,6 +362,7 @@ export default function Tracker({ user, onLogout }) {
             {navItem('general', 'General')}
             {navItem('team', 'My Team')}
             {navItem('safety', 'Safety at Site')}
+            {navItem('directory', 'Team Directory')}  
           </nav>
         </div>
         <div className="border-t border-white/10 pt-4">
@@ -381,7 +383,7 @@ export default function Tracker({ user, onLogout }) {
             <span className="text-sm font-medium text-ink">{user?.name}</span>
             <button onClick={onLogout} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted border border-line rounded-md px-3 py-2">Log Out</button>
           </div>
-          {nav !== 'safety' && (
+          {nav !== 'safety' && nav !== 'directory' && (     
             <button onClick={() => setShowForm((s) => !s)} className="bg-accent-blue text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-blue/90 transition-colors">
               {showForm ? 'Cancel' : '+ New Action Item'}
             </button>
@@ -390,8 +392,10 @@ export default function Tracker({ user, onLogout }) {
 
         <div className="px-6 md:px-10 py-8 relative">
           {nav === 'safety' ? (
-            <Safety user={user} />
-          ) : (
+            <Safety user={user} /> 
+          ) : nav === 'directory' ? (
+            <Directory />
+          ) : (      
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
                 <StatTile label="Open" value={counts.open} topColor={STATUS_STYLES.open.top} />
