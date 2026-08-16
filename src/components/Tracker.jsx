@@ -4,19 +4,22 @@ import Safety from './SafetySection'
 import Directory from './Directory' 
 import ChatModal from './ChatModal'   
 import AssignWorkModal from './AssignWorkModal'
+import SendBackModal from './SendBackModal'
 
 const SOURCES = ['governance', 'audit', 'project', 'leadership_review', 'other']
-const STAGES = ['open', 'in_progress', 'ready_to_close', 'closed']
+const STAGES = ['open', 'in_progress', 'ready_to_close', 'pending_approval', 'closed']
 const STATUS_LABELS = {
   open: 'Open',
   in_progress: 'In Progress',
   ready_to_close: 'Ready to Close',
+  pending_approval: 'Pending Approval',
   closed: 'Closed',
 }
 const STATUS_STYLES = {
   open: { bar: 'bg-ink-muted', badge: 'bg-line text-ink-muted', top: '#5C6670' },
   in_progress: { bar: 'bg-accent-blue', badge: 'bg-accent-blue/10 text-accent-blue', top: '#2B6CB0' },
   ready_to_close: { bar: 'bg-accent-amber', badge: 'bg-accent-amber/10 text-accent-amber', top: '#D98C2B' },
+  pending_approval: { bar: 'bg-[#7C5CBF]', badge: 'bg-[#7C5CBF]/10 text-[#7C5CBF]', top: '#7C5CBF' },
   closed: { bar: 'bg-accent-green', badge: 'bg-accent-green/10 text-accent-green', top: '#2F8F5B' },
 }
 const MENTOR_COLOR = '#7C5CBF'
@@ -24,15 +27,10 @@ const ACTION_META = {
   created: { label: 'Logged', color: '#5C6670' },
   advanced_to_in_progress: { label: 'Started progress', color: '#2B6CB0' },
   advanced_to_ready_to_close: { label: 'Marked ready to close', color: '#D98C2B' },
-  verified_closed: { label: 'Verified & closed', color: '#2F8F5B' },
+  submitted_for_approval: { label: 'Submitted for approval', color: '#7C5CBF' },
+  approved_closed: { label: 'Approved & closed', color: '#2F8F5B' },
+  sent_back: { label: 'Sent back for re-examination', color: '#C1443C' },
   mentor_comment: { label: 'Mentor commented', color: MENTOR_COLOR },
-}
-const VERIFIERS = {
-  'Ramkumar': '12345',
-  'Pramod Patil': '23451',
-  'Dhanesh': 'abcde',
-  'Ravi': '09090',
-  'Cahal Smith': '898989',
 }
 
 function isOverdue(item) {
@@ -42,7 +40,6 @@ function isOverdue(item) {
 function nextActionLabel(status) {
   if (status === 'open') return 'Start Progress'
   if (status === 'in_progress') return 'Mark Ready to Close'
-  if (status === 'ready_to_close') return 'Verify & Close'
   return null
 }
 
@@ -112,62 +109,6 @@ function Timeline({ entries }) {
   )
 }
 
-function ClosureModal({ item, onCancel, onConfirm }) {
-  const [verifier, setVerifier] = useState('')
-  const [password, setPassword] = useState('')
-  const [note, setNote] = useState('')
-  const [error, setError] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError('')
-    if (!verifier) { setError('Select who is verifying this closure.'); return }
-    if (VERIFIERS[verifier] !== password) { setError('Incorrect password for the selected verifier.'); return }
-    setSubmitting(true)
-    await onConfirm({ verifier, note })
-    setSubmitting(false)
-  }
-
-  return (
-    <div className="fixed inset-0 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-6 z-50">
-      <div className="relative bg-surface border border-line rounded-xl p-6 w-full max-w-md shadow-xl overflow-hidden">
-        <div className="absolute top-0 left-0 right-0 h-1 bg-accent-green" />
-        <p className="font-mono text-xs uppercase tracking-wider text-accent-green mb-1">Authorized Closure</p>
-        <h2 className="text-xl font-semibold text-ink mb-1">Verify & Close</h2>
-        <p className="text-sm text-ink-muted mb-5">"{item.title}" — only designated verifiers can close this item.</p>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Verifier</label>
-            <select className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
-              value={verifier} onChange={(e) => setVerifier(e.target.value)}>
-              <option value="">Select verifier…</option>
-              {Object.keys(VERIFIERS).map((v) => <option key={v} value={v}>{v}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Password</label>
-            <input type="password" className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
-              value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" />
-          </div>
-          <div>
-            <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Closure note / evidence</label>
-            <textarea className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
-              placeholder="What confirms this is actually done?" value={note} onChange={(e) => setNote(e.target.value)} />
-          </div>
-          {error && <p className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-md px-3 py-2">{error}</p>}
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onCancel} className="flex-1 border border-line rounded-md p-2.5 font-medium text-ink-muted hover:text-ink transition-colors">Cancel</button>
-            <button type="submit" disabled={submitting} className="flex-1 bg-accent-green text-white rounded-md p-2.5 font-medium hover:bg-accent-green/90 transition-colors disabled:opacity-60">
-              {submitting ? 'Verifying…' : 'Confirm & Close'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
 function OwnerStatusPanel({ items }) {
   const active = items.filter((i) => i.status !== 'closed')
   const byOwner = {}
@@ -232,7 +173,7 @@ export default function Tracker({ user, onLogout }) {
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterOwner, setFilterOwner] = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [closingItem, setClosingItem] = useState(null)
+  const [sendingBackItem, setSendingBackItem] = useState(null)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [assigningTo, setAssigningTo] = useState(null)
   const [form, setForm] = useState({
@@ -290,7 +231,6 @@ export default function Tracker({ user, onLogout }) {
   }
 
   async function advanceStatus(item) {
-    if (item.status === 'ready_to_close') { setClosingItem(item); return }
     let next = item.status
     let actionKey = null
     if (item.status === 'open') { next = 'in_progress'; actionKey = 'advanced_to_in_progress' }
@@ -302,12 +242,76 @@ export default function Tracker({ user, onLogout }) {
     loadItems()
   }
 
-  async function handleConfirmClosure({ verifier, note }) {
-    const item = closingItem
-    const { error } = await supabase.from('action_items').update({ status: 'closed', verified_by: verifier, verified_at: new Date().toISOString(), closure_note: note }).eq('id', item.id)
-    if (error) { setError(error.message); setClosingItem(null); return }
-    await supabase.from('item_activity').insert([{ item_id: item.id, actor: verifier, action: 'verified_closed', note }])
-    setClosingItem(null)
+  // Owner submits a "ready to close" item for their team manager's approval.
+  async function submitForApproval(item) {
+    const { data: managerProfile, error: mgrError } = await supabase
+      .from('profiles')
+      .select('id, name')
+      .eq('team', item.team)
+      .eq('role', 'MANAGER')
+      .maybeSingle()
+
+    const { error } = await supabase.from('action_items')
+      .update({ status: 'pending_approval', closure_note: null })
+      .eq('id', item.id)
+    if (error) { setError(error.message); return }
+
+    await supabase.from('item_activity').insert([{
+      item_id: item.id, actor: user?.name || 'Unknown', action: 'submitted_for_approval',
+    }])
+
+    if (!mgrError && managerProfile) {
+      await supabase.from('messages').insert([{
+        sender_id: user?.id,
+        recipient_id: managerProfile.id,
+        body: `${user?.name} submitted "${item.title}" for your approval (due ${item.deadline}).`,
+      }])
+    } else {
+      setError(`Submitted, but no manager is set up for team "${item.team}" — they weren't notified.`)
+    }
+
+    loadItems()
+  }
+
+  // Manager approves a pending item — closes it and notifies the owner.
+  async function approveItem(item) {
+    const { error } = await supabase.from('action_items').update({
+      status: 'closed', verified_by: user?.name || 'Unknown', verified_at: new Date().toISOString(), closure_note: null,
+    }).eq('id', item.id)
+    if (error) { setError(error.message); return }
+
+    await supabase.from('item_activity').insert([{ item_id: item.id, actor: user?.name || 'Unknown', action: 'approved_closed' }])
+
+    const { data: ownerProfile } = await supabase.from('profiles').select('id').eq('name', item.owner_name).maybeSingle()
+    if (ownerProfile) {
+      await supabase.from('messages').insert([{
+        sender_id: user?.id,
+        recipient_id: ownerProfile.id,
+        body: `${user?.name} approved and closed "${item.title}".`,
+      }])
+    }
+    loadItems()
+  }
+
+  // Manager sends a pending item back to "Ready to Close" with a comment.
+  async function handleSendBack({ note }) {
+    const item = sendingBackItem
+    const { error } = await supabase.from('action_items').update({
+      status: 'ready_to_close', closure_note: note,
+    }).eq('id', item.id)
+    if (error) { setError(error.message); setSendingBackItem(null); return }
+
+    await supabase.from('item_activity').insert([{ item_id: item.id, actor: user?.name || 'Unknown', action: 'sent_back', note }])
+
+    const { data: ownerProfile } = await supabase.from('profiles').select('id').eq('name', item.owner_name).maybeSingle()
+    if (ownerProfile) {
+      await supabase.from('messages').insert([{
+        sender_id: user?.id,
+        recipient_id: ownerProfile.id,
+        body: `${user?.name} sent "${item.title}" back for re-examination: ${note}`,
+      }])
+    }
+    setSendingBackItem(null)
     loadItems()
   }
 
@@ -347,6 +351,7 @@ export default function Tracker({ user, onLogout }) {
     open: scopedItems.filter((i) => i.status === 'open').length,
     in_progress: scopedItems.filter((i) => i.status === 'in_progress').length,
     ready_to_close: scopedItems.filter((i) => i.status === 'ready_to_close').length,
+    pending_approval: scopedItems.filter((i) => i.status === 'pending_approval').length,
     closed: scopedItems.filter((i) => i.status === 'closed').length,
     overdue: scopedItems.filter(isOverdue).length,
   }
@@ -380,11 +385,11 @@ export default function Tracker({ user, onLogout }) {
   />
 )}
 
-{closingItem && (
-  <ClosureModal
-    item={closingItem}
-    onCancel={() => setClosingItem(null)}
-    onConfirm={handleConfirmClosure}
+{sendingBackItem && (
+  <SendBackModal
+    item={sendingBackItem}
+    onCancel={() => setSendingBackItem(null)}
+    onConfirm={handleSendBack}
   />
 )}
 
@@ -460,10 +465,11 @@ export default function Tracker({ user, onLogout }) {
             />    
           ) : (      
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
                 <StatTile label="Open" value={counts.open} topColor={STATUS_STYLES.open.top} />
                 <StatTile label="In Progress" value={counts.in_progress} topColor={STATUS_STYLES.in_progress.top} />
-                <StatTile label="Awaiting Verify" value={counts.ready_to_close} topColor={STATUS_STYLES.ready_to_close.top} />
+                <StatTile label="Ready to Close" value={counts.ready_to_close} topColor={STATUS_STYLES.ready_to_close.top} />
+                <StatTile label="Pending Approval" value={counts.pending_approval} topColor={STATUS_STYLES.pending_approval.top} />
                 <StatTile label="Closed" value={counts.closed} topColor={STATUS_STYLES.closed.top} />
                 <StatTile label="Overdue" value={counts.overdue} topColor="#C1443C" />
               </div>
@@ -551,6 +557,7 @@ export default function Tracker({ user, onLogout }) {
                         const isOpen = !!expanded[item.id]
                         const entries = activity[item.id] || []
                         const isEditingMentor = !!mentorEditing[item.id]
+                        const isTeamManager = user?.role === 'MANAGER' && user?.team === item.team
                         return (
                           <div key={item.id} className={`bg-surface border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow border-l-4 ${overdue ? 'border-l-accent-red border-line' : 'border-l-transparent border-line'}`}>
                             <div className="flex justify-between items-center gap-4 flex-wrap">
@@ -577,9 +584,32 @@ export default function Tracker({ user, onLogout }) {
                                   <span className={`font-mono text-[11px] uppercase tracking-wider px-2 py-0.5 rounded ${style.badge}`}>{STATUS_LABELS[item.status]}</span>
                                   <StageBar status={item.status} />
                                 </div>
+
+                                {item.status === 'ready_to_close' && (
+                                  <button onClick={() => submitForApproval(item)} className="text-sm bg-ink text-white px-3 py-1.5 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap">
+                                    Submit for Approval
+                                  </button>
+                                )}
+
+                                {item.status === 'pending_approval' && (
+                                  isTeamManager ? (
+                                    <div className="flex items-center gap-2">
+                                      <button onClick={() => approveItem(item)} className="text-sm bg-accent-green text-white px-3 py-1.5 rounded-md hover:bg-accent-green/90 transition-colors whitespace-nowrap">
+                                        Approve & Close
+                                      </button>
+                                      <button onClick={() => setSendingBackItem(item)} className="text-sm bg-accent-red text-white px-3 py-1.5 rounded-md hover:bg-accent-red/90 transition-colors whitespace-nowrap">
+                                        Send Back
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="font-mono text-[11px] text-ink-muted italic whitespace-nowrap">Awaiting manager approval</span>
+                                  )
+                                )}
+
                                 {label && (
                                   <button onClick={() => advanceStatus(item)} className="text-sm bg-ink text-white px-3 py-1.5 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap">{label}</button>
                                 )}
+
                                 <button
                                   onClick={() => (isEditingMentor ? setMentorEditing((p) => ({ ...p, [item.id]: false })) : openMentorEditor(item))}
                                   className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border transition-colors"
@@ -592,6 +622,13 @@ export default function Tracker({ user, onLogout }) {
                                 </button>
                               </div>
                             </div>
+
+                            {item.status === 'ready_to_close' && item.closure_note && (
+                              <div className="mt-3 rounded-lg px-3 py-2 text-sm bg-accent-red/10" style={{ borderLeft: '3px solid #C1443C' }}>
+                                <p className="font-mono text-[10px] uppercase tracking-wider text-accent-red mb-0.5">Sent back by manager</p>
+                                <p className="text-ink">{item.closure_note}</p>
+                              </div>
+                            )}
 
                             {item.mentor_comment && !isEditingMentor && (
                               <div className="mt-3 rounded-lg px-3 py-2 text-sm" style={{ backgroundColor: `${MENTOR_COLOR}12`, borderLeft: `3px solid ${MENTOR_COLOR}` }}>
@@ -631,4 +668,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}      
+}   
