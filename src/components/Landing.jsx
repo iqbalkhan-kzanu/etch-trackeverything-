@@ -280,13 +280,13 @@ const STAGES = [
 ]
 
 const TICKER_ITEMS = [
-  'LOT TRV-2291 → LITHO BAY 3',
-  'AUDIT FINDING #58 — OWNER ASSIGNED',
-  'WIP 1,204 LOTS',
-  'YIELD 98.2%',
-  '12 ITEMS OVERDUE — ESCALATED',
-  'GOVERNANCE REVIEW Q3 CLOSED',
-  'CD UNIFORMITY WITHIN SPEC',
+  'ONE TEAM ONE DREAM ',
+  'DHOLERA - THE SMART CITY ',
+  '50,000 WAFERS ',
+  'DREAM BIG DREAM SEMICON ',
+  'MADE IN INDIA ',
+  'FABATHON ',
+  'FMCS ',   
 ]
 
 /* deterministic pseudo-random, avoids hydration mismatch */
