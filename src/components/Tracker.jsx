@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import Safety from './SafetySection'
 import Directory from './Directory' 
 import ChatModal from './ChatModal'   
+import AssignWorkModal from './AssignWorkModal'
 
 const SOURCES = ['governance', 'audit', 'project', 'leadership_review', 'other']
 const STAGES = ['open', 'in_progress', 'ready_to_close', 'closed']
@@ -233,6 +234,7 @@ export default function Tracker({ user, onLogout }) {
   const [showForm, setShowForm] = useState(false)
   const [closingItem, setClosingItem] = useState(null)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [assigningTo, setAssigningTo] = useState(null)
   const [form, setForm] = useState({
     title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team',
   })
@@ -386,6 +388,15 @@ export default function Tracker({ user, onLogout }) {
   />
 )}
 
+{assigningTo && (
+  <AssignWorkModal
+    mentor={user}
+    assignee={assigningTo}
+    onCancel={() => setAssigningTo(null)}
+    onAssigned={() => { setAssigningTo(null); loadItems() }}
+  />
+)}
+
       {mobileNavOpen && <div className="fixed inset-0 bg-ink/60 z-40 md:hidden" onClick={() => setMobileNavOpen(false)} />}
       <aside className={`w-64 shrink-0 bg-ink text-white flex-col justify-between p-6 fixed md:sticky top-0 left-0 h-screen z-50 md:z-auto ${mobileNavOpen ? 'flex' : 'hidden'} md:flex`}>
         <div>
@@ -445,6 +456,7 @@ export default function Tracker({ user, onLogout }) {
             <Directory
               user={user}
               onMessage={(person) => setChatUser(person)}
+              onAssign={(person) => setAssigningTo(person)}
             />    
           ) : (      
             <>
@@ -549,6 +561,11 @@ export default function Tracker({ user, onLogout }) {
                                   {item.visibility === 'general' && (
                                     <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-blue/10 text-accent-blue">General</span>
                                   )}
+                                  {item.assigned_by_mentor && (
+                                    <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded" style={{ backgroundColor: '#7C5CBF15', color: '#7C5CBF' }}>
+                                      Assigned by {item.assigned_by_mentor}
+                                    </span>
+                                  )}
                                   {overdue && <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-red/10 text-accent-red">Overdue</span>}
                                 </div>
                                 <p className="text-sm text-ink-muted mt-0.5 font-mono">
@@ -614,4 +631,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}         
+}      

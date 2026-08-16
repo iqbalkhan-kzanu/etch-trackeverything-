@@ -11,8 +11,9 @@ const TEAM_META = {
   SAFETY: { color: '#E07B39', bg: '#FFF7ED' },
   MODULE: { color: '#5C6670', bg: '#F8FAFC' },
 }
+const MENTOR_COLOR = '#7C5CBF'
 
-export default function Directory({ user, onMessage }) {
+export default function Directory({ user, onMessage, onAssign }) {
   const [profiles, setProfiles] = useState([])
   const [unreadBySender, setUnreadBySender] = useState({})
   const [loading, setLoading] = useState(true)
@@ -72,6 +73,10 @@ export default function Directory({ user, onMessage }) {
 
     return () => clearInterval(interval)
   }, [user?.id])
+
+  // Current user's own profile — used to check mentor status and team
+  const own = profiles.find((p) => p.id === user?.id)
+  const isMentor = !!own?.is_mentor
 
   // All team names available, regardless of current search — used to populate the team select
   const allTeams = Array.from(
@@ -273,6 +278,9 @@ export default function Directory({ user, onMessage }) {
                     const isSelf =
                       user && m.id === user.id
 
+                    const canAssign =
+                      isMentor && own?.team === team && !isSelf
+
                     return (
                       <div
                         key={m.id}
@@ -322,6 +330,15 @@ export default function Directory({ user, onMessage }) {
                                 </span>
                               )}
 
+                              {m.is_mentor && (
+                                <span
+                                  className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                                  style={{ backgroundColor: `${MENTOR_COLOR}15`, color: MENTOR_COLOR }}
+                                >
+                                  Mentor
+                                </span>
+                              )}
+
                             </div>
 
                             <p className="text-xs text-ink-muted truncate mt-0.5">
@@ -333,7 +350,7 @@ export default function Directory({ user, onMessage }) {
                         </div>
 
                         {/* BOTTOM INFORMATION */}
-                        <div className="flex items-center justify-between mt-4 pt-3 border-t border-line">
+                        <div className="flex items-center justify-between mt-4 pt-3 border-t border-line gap-2 flex-wrap">
 
                           <div className="flex items-center gap-2">
 
@@ -347,17 +364,31 @@ export default function Directory({ user, onMessage }) {
 
                           </div>
 
-                          {!isSelf && (
-                            <button
-                              onClick={() => onMessage(m)}
-                              className="text-xs font-semibold px-3.5 py-1.5 rounded-lg text-white transition-all hover:opacity-90 active:scale-95"
-                              style={{
-                                backgroundColor: meta.color,
-                              }}
-                            >
-                              Message
-                            </button>
-                          )}
+                          <div className="flex items-center gap-2">
+
+                            {canAssign && (
+                              <button
+                                onClick={() => onAssign(m)}
+                                className="text-xs font-semibold px-3.5 py-1.5 rounded-lg text-white transition-all hover:opacity-90 active:scale-95"
+                                style={{ backgroundColor: MENTOR_COLOR }}
+                              >
+                                Assign Work
+                              </button>
+                            )}
+
+                            {!isSelf && (
+                              <button
+                                onClick={() => onMessage(m)}
+                                className="text-xs font-semibold px-3.5 py-1.5 rounded-lg text-white transition-all hover:opacity-90 active:scale-95"
+                                style={{
+                                  backgroundColor: meta.color,
+                                }}
+                              >
+                                Message
+                              </button>
+                            )}
+
+                          </div>
 
                         </div>
 
@@ -387,4 +418,4 @@ export default function Directory({ user, onMessage }) {
 
     </div>
   )
-}     
+}      
