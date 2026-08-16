@@ -5,6 +5,7 @@ import Directory from './Directory'
 import ChatModal from './ChatModal'   
 import AssignWorkModal from './AssignWorkModal'
 import SendBackModal from './SendBackModal'
+import SubmitForApprovalModal from './SubmitForApprovalModal'
 
 const SOURCES = ['governance', 'audit', 'project', 'leadership_review', 'other']
 const STAGES = ['open', 'in_progress', 'ready_to_close', 'pending_approval', 'closed']
@@ -174,6 +175,7 @@ export default function Tracker({ user, onLogout }) {
   const [filterOwner, setFilterOwner] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [sendingBackItem, setSendingBackItem] = useState(null)
+  const [submittingItem, setSubmittingItem] = useState(null)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [assigningTo, setAssigningTo] = useState(null)
   const [form, setForm] = useState({
@@ -242,8 +244,12 @@ export default function Tracker({ user, onLogout }) {
     loadItems()
   }
 
-  // Owner submits a "ready to close" item for their team manager's approval.
-  async function submitForApproval(item) {
+  // Owner submits a "ready to close" item for their team manager's approval,
+  // attaching a completion note and any pictures/evidence.
+  async function handleSubmitForApproval({ note, images }) {
+    const item = submittingItem
+    if (!item) return
+
     const { data: managerProfile, error: mgrError } = await supabase
       .from('profiles')
       .select('id, name')
@@ -252,12 +258,17 @@ export default function Tracker({ user, onLogout }) {
       .maybeSingle()
 
     const { error } = await supabase.from('action_items')
-      .update({ status: 'pending_approval', closure_note: null })
+      .update({
+        status: 'pending_approval',
+        closure_note: null,
+        completion_note: note,
+        completion_images: images,
+      })
       .eq('id', item.id)
-    if (error) { setError(error.message); return }
+    if (error) { setError(error.message); setSubmittingItem(null); return }
 
     await supabase.from('item_activity').insert([{
-      item_id: item.id, actor: user?.name || 'Unknown', action: 'submitted_for_approval',
+      item_id: item.id, actor: user?.name || 'Unknown', action: 'submitted_for_approval', note,
     }])
 
     if (!mgrError && managerProfile) {
@@ -270,6 +281,7 @@ export default function Tracker({ user, onLogout }) {
       setError(`Submitted, but no manager is set up for team "${item.team}" — they weren't notified.`)
     }
 
+    setSubmittingItem(null)
     loadItems()
   }
 
@@ -382,6 +394,15 @@ export default function Tracker({ user, onLogout }) {
       loadUnreadMessages()
     }}
     onMessagesRead={loadUnreadMessages}
+  />
+)}
+
+{submittingItem && (
+  <SubmitForApprovalModal
+    item={submittingItem}
+    user={user}
+    onCancel={() => setSubmittingItem(null)}
+    onConfirm={handleSubmitForApproval}
   />
 )}
 
@@ -586,7 +607,7 @@ export default function Tracker({ user, onLogout }) {
                                 </div>
 
                                 {item.status === 'ready_to_close' && (
-                                  <button onClick={() => submitForApproval(item)} className="text-sm bg-ink text-white px-3 py-1.5 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap">
+                                  <button onClick={() => setSubmittingItem(item)} className="text-sm bg-ink text-white px-3 py-1.5 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap">
                                     Submit for Approval
                                   </button>
                                 )}
@@ -630,6 +651,22 @@ export default function Tracker({ user, onLogout }) {
                               </div>
                             )}
 
+                            {(item.completion_note || (item.completion_images && item.completion_images.length > 0)) && (
+                              <div className="mt-3 rounded-lg px-3 py-2.5 text-sm bg-line/40" style={{ borderLeft: '3px solid #14181C' }}>
+                                <p className="font-mono text-[10px] uppercase tracking-wider text-ink-muted mb-1">Work Summary</p>
+                                {item.completion_note && <p className="text-ink mb-2">{item.completion_note}</p>}
+                                {item.completion_images && item.completion_images.length > 0 && (
+                                  <div className="flex flex-wrap gap-2">
+                                    {item.completion_images.map((url, i) => (
+                                      <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="w-16 h-16 rounded-md overflow-hidden border border-line block">
+                                        <img src={url} alt="" className="w-full h-full object-cover" />
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
                             {item.mentor_comment && !isEditingMentor && (
                               <div className="mt-3 rounded-lg px-3 py-2 text-sm" style={{ backgroundColor: `${MENTOR_COLOR}12`, borderLeft: `3px solid ${MENTOR_COLOR}` }}>
                                 <p className="font-mono text-[10px] uppercase tracking-wider mb-0.5" style={{ color: MENTOR_COLOR }}>Mentor Comment — {item.mentor_by}</p>
@@ -668,4 +705,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}   
+}     
