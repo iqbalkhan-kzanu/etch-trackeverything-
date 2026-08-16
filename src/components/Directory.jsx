@@ -17,6 +17,7 @@ export default function Directory({ user, onMessage }) {
   const [unreadBySender, setUnreadBySender] = useState({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [selectedTeam, setSelectedTeam] = useState('all')
 
   async function loadProfiles() {
     const { data, error } = await supabase
@@ -72,8 +73,16 @@ export default function Directory({ user, onMessage }) {
     return () => clearInterval(interval)
   }, [user?.id])
 
+  // All team names available, regardless of current search — used to populate the team select
+  const allTeams = Array.from(
+    new Set(profiles.map((p) => p.team || 'Unassigned'))
+  ).sort()
+
   const filteredProfiles = profiles.filter((p) => {
     const term = search.toLowerCase().trim()
+    const team = p.team || 'Unassigned'
+
+    if (selectedTeam !== 'all' && team !== selectedTeam) return false
 
     if (!term) return true
 
@@ -120,10 +129,10 @@ export default function Directory({ user, onMessage }) {
     <div className="max-w-6xl mx-auto">
 
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-8">
+      <div className="flex flex-col items-center text-center gap-5 mb-8">
 
         <div>
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center justify-center gap-3 mb-2">
             <h2 className="text-2xl font-semibold text-ink">
               Team Directory
             </h2>
@@ -136,35 +145,50 @@ export default function Directory({ user, onMessage }) {
           </div>
 
           <p className="text-sm text-ink-muted">
-            {profiles.length} members across{' '}
-            {new Set(profiles.map((p) => p.team).filter(Boolean)).size}{' '}
-            teams
+            Partners at work
           </p>
         </div>
 
-        {/* SEARCH */}
-        <div className="relative w-full md:w-72">
+        {/* SEARCH + TEAM FILTER */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-xl">
 
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"
+          <div className="relative w-full sm:flex-1">
+
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"
+              />
+            </svg>
+
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search people or teams..."
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-line bg-surface text-sm text-ink outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
             />
-          </svg>
 
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search people or teams..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-line bg-surface text-sm text-ink outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-          />
+          </div>
+
+          <select
+            value={selectedTeam}
+            onChange={(e) => setSelectedTeam(e.target.value)}
+            className="w-full sm:w-52 shrink-0 py-2.5 px-3 rounded-lg border border-line bg-surface text-sm text-ink outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+          >
+            <option value="all">All teams</option>
+            {allTeams.map((team) => (
+              <option key={team} value={team}>
+                {team}
+              </option>
+            ))}
+          </select>
 
         </div>
       </div>
@@ -182,9 +206,9 @@ export default function Directory({ user, onMessage }) {
             No members found.
           </p>
 
-          {search && (
+          {(search || selectedTeam !== 'all') && (
             <p className="text-sm text-ink-muted mt-1">
-              Try a different search.
+              Try a different search or team.
             </p>
           )}
         </div>
@@ -363,4 +387,4 @@ export default function Directory({ user, onMessage }) {
 
     </div>
   )
-}         
+}     
