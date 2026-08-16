@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 
-export default function ChatModal({ currentUser, recipient, onClose }) {
+export default function ChatModal({ currentUser, recipient, onClose, onMessagesRead }) {
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(true)
@@ -17,6 +17,15 @@ export default function ChatModal({ currentUser, recipient, onClose }) {
       .order('created_at', { ascending: true })
     setMessages(data || [])
     setLoading(false)
+
+    await supabase
+      .from('messages')
+      .update({ read_at: new Date().toISOString() })
+      .eq('recipient_id', currentUser.id)
+      .eq('sender_id', recipient.id)
+      .is('read_at', null)
+
+    onMessagesRead?.()
   }
 
   useEffect(() => { loadMessages() }, [recipient.id])
@@ -81,4 +90,4 @@ export default function ChatModal({ currentUser, recipient, onClose }) {
       </div>
     </div>  
   )
-}   
+}          

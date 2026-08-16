@@ -227,6 +227,7 @@ export default function Tracker({ user, onLogout }) {
   const [error, setError] = useState(null)
   const [nav, setNav] = useState('mine') // 'mine' | 'general' | 'team' | 'safety'
   const [chatUser, setChatUser] = useState(null)    
+  const [unreadMessages, setUnreadMessages] = useState(0)
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterOwner, setFilterOwner] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -254,7 +255,23 @@ export default function Tracker({ user, onLogout }) {
     setLoading(false)
   }
 
+  async function loadUnreadMessages() {
+    if (!user?.id) return
+    const { count, error } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('recipient_id', user.id)
+      .is('read_at', null)
+    if (!error) setUnreadMessages(count || 0)
+  }
+
   useEffect(() => { loadItems() }, [])
+
+  useEffect(() => {
+    loadUnreadMessages()
+    const interval = setInterval(loadUnreadMessages, 5000)
+    return () => clearInterval(interval)
+  }, [user?.id])
 
   function goTo(key) { setNav(key); setMobileNavOpen(false) }
 
@@ -353,7 +370,11 @@ export default function Tracker({ user, onLogout }) {
   <ChatModal
     currentUser={user}
     recipient={chatUser}
-    onClose={() => setChatUser(null)}
+    onClose={() => {
+      setChatUser(null)
+      loadUnreadMessages()
+    }}
+    onMessagesRead={loadUnreadMessages}
   />
 )}
 
@@ -379,7 +400,17 @@ export default function Tracker({ user, onLogout }) {
             {navItem('general', 'General')}
             {navItem('team', 'My Team')}
             {navItem('safety', 'Safety at Site')}
-            {navItem('directory', 'Team Directory')}  
+            {navItem(
+              'directory',
+              <span className="flex items-center gap-2">
+                Team Directory
+                {unreadMessages > 0 && (
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {unreadMessages > 99 ? '99+' : unreadMessages}
+                  </span>
+                )}
+              </span>
+            )}  
           </nav>
         </div>
         <div className="border-t border-white/10 pt-4">
@@ -583,4 +614,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}   
+}         
