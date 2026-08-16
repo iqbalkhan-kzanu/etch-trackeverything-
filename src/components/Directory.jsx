@@ -139,7 +139,7 @@ export default function Directory({ user, onMessage, onAssign }) {
         <div>
           <div className="flex items-center justify-center gap-3 mb-2">
             <h2 className="text-2xl font-semibold text-ink">
-              Team Directory
+              MEET YOUR MATES    
             </h2>
 
             {totalUnread > 0 && (
