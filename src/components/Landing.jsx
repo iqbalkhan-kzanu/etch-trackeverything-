@@ -3,9 +3,9 @@ import { useMemo } from 'react'
 /* ---------------------------------------------------------------
    ETCH — Tata Electronics · Dholera Fab
    Theme: Cleanroom / Litho Bay
-   - Graphite base (cleanroom steel), amber signature (lithography
-     bay lighting is genuinely amber — protects photoresist), cyan
-     for active states (etch plasma glow), green/red for bin status.
+   - Graphite base (cleanroom steel), blue signature (stepper
+     alignment laser / ion-beam blue), cyan for active states
+     (etch plasma glow), green/red for bin status.
    - Signature element: live wafer bin-map with inspection sweep.
    --------------------------------------------------------------- */
 
@@ -19,8 +19,8 @@ const TOKENS = `
     --line-soft: #1E2226;
     --silver: #E7EAEC;
     --silver-muted: #8D959B;
-    --litho-amber: #F0A83B;
-    --litho-amber-dim: #7A5A28;
+    --litho-blue: #3B82F6;
+    --litho-blue-dim: #24406E;
     --plasma-cyan: #4FD8E8;
     --bin-green: #4ADE80;
     --bin-red: #F2545B;
@@ -68,7 +68,7 @@ const TOKENS = `
     align-items: center;
     gap: 10px;
   }
-  .etch-ticker-item b { color: var(--litho-amber); font-weight: 500; }
+  .etch-ticker-item b { color: var(--litho-blue); font-weight: 500; }
   .etch-ticker-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--line); }
 
   @keyframes etch-marquee {
@@ -85,7 +85,7 @@ const TOKENS = `
     border-bottom: 1px solid var(--line);
   }
   .etch-logo { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
-  .etch-logo span { color: var(--litho-amber); }
+  .etch-logo span { color: var(--litho-blue); }
 
   /* ---------- hero ---------- */
   .etch-hero {
@@ -103,7 +103,7 @@ const TOKENS = `
   .etch-eyebrow {
     font-size: 11px;
     text-transform: uppercase;
-    color: var(--litho-amber);
+    color: var(--litho-blue);
     margin-bottom: 18px;
   }
   .etch-h1 {
@@ -113,7 +113,7 @@ const TOKENS = `
     line-height: 0.98;
     margin: 0;
   }
-  .etch-h1 .dot { color: var(--litho-amber); }
+  .etch-h1 .dot { color: var(--litho-blue); }
   .etch-sub {
     font-size: 17px;
     line-height: 1.55;
@@ -122,7 +122,7 @@ const TOKENS = `
     margin: 20px 0 32px;
   }
   .etch-cta {
-    background: var(--litho-amber);
+    background: var(--litho-blue);
     color: var(--graphite-950);
     border: none;
     font-family: var(--font-display);
@@ -132,10 +132,10 @@ const TOKENS = `
     border-radius: 3px;
     cursor: pointer;
     transition: box-shadow 0.2s ease, transform 0.2s ease;
-    box-shadow: 0 0 0 0 rgba(240, 168, 59, 0);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
   }
   .etch-cta:hover {
-    box-shadow: 0 0 28px 2px rgba(240, 168, 59, 0.35);
+    box-shadow: 0 0 28px 2px rgba(59, 130, 246, 0.35);
     transform: translateY(-1px);
   }
   .etch-cta:focus-visible {
@@ -221,7 +221,7 @@ const TOKENS = `
   }
   .etch-card:hover {
     background: var(--graphite-800);
-    box-shadow: inset 2px 0 0 var(--litho-amber);
+    box-shadow: inset 2px 0 0 var(--litho-blue);
   }
   .etch-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .etch-card-title { font-size: 15px; font-weight: 600; }
@@ -230,9 +230,9 @@ const TOKENS = `
     text-transform: uppercase;
     padding: 3px 7px;
     border-radius: 2px;
-    background: rgba(240, 168, 59, 0.12);
-    color: var(--litho-amber);
-    border: 1px solid rgba(240, 168, 59, 0.3);
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--litho-blue);
+    border: 1px solid rgba(59, 130, 246, 0.3);
   }
   .etch-card-desc { font-size: 13.5px; line-height: 1.6; color: var(--silver-muted); }
 
@@ -275,7 +275,7 @@ const FEATURES = [
 const STAGES = [
   { label: 'Open', color: 'var(--silver-muted)' },
   { label: 'In Progress', color: 'var(--plasma-cyan)' },
-  { label: 'Ready to Close', color: 'var(--litho-amber)' },
+  { label: 'Ready to Close', color: 'var(--litho-blue)' },
   { label: 'Closed', color: 'var(--bin-green)' },
 ]
 
@@ -313,7 +313,7 @@ function WaferMap() {
         let fill = 'var(--graphite-700)'
         let pulse = false
         if (r > 0.9) { fill = 'var(--bin-green)' }
-        else if (r > 0.8) { fill = 'var(--litho-amber)'; pulse = idx % 5 === 0 }
+        else if (r > 0.8) { fill = 'var(--litho-blue)'; pulse = idx % 5 === 0 }
         else if (r > 0.62) { fill = 'var(--plasma-cyan)'; pulse = idx % 4 === 0 }
         out.push({
           key: idx,
@@ -334,8 +334,8 @@ function WaferMap() {
       <svg viewBox="0 0 300 300" width="360" height="360" style={{ maxWidth: '100%' }}>
         <defs>
           <radialGradient id="wafer-glow" cx="50%" cy="50%" r="65%">
-            <stop offset="0%" stopColor="rgba(240,168,59,0.06)" />
-            <stop offset="100%" stopColor="rgba(240,168,59,0)" />
+            <stop offset="0%" stopColor="rgba(59,130,246,0.06)" />
+            <stop offset="100%" stopColor="rgba(59,130,246,0)" />
           </radialGradient>
           <linearGradient id="sweep-grad" x1="150" y1="150" x2="150" y2="16" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="rgba(79,216,232,0)" />
@@ -413,12 +413,12 @@ export default function Landing({ onEnter }) {
             ETCH<span className="dot">.</span>
           </h1>
           <p className="etch-sub">
-            Every action item, traced like a lot on the line. Nothing logged here fades or gets forgotten.
+           સેમિકન્ડક્ટરની  અદ્ભુત  દુનિયામાં  આપનું  હાર્દિક  સ્વાગત છે           
           </p>
           <button className="etch-cta" onClick={onEnter}>
             Enter ETCH →
           </button>
-        </div>
+        </div>   
         <WaferMap />
       </div>
 
@@ -455,4 +455,4 @@ export default function Landing({ onEnter }) {
       </div>
     </div>
   )
-}   
+}        
