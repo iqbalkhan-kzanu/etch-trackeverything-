@@ -369,7 +369,7 @@ function WaferMap() {
           <line x1="150" y1="150" x2="150" y2="20" stroke="url(#sweep-grad)" strokeWidth="34" strokeLinecap="round" />
         </g>
       </svg>
-      <p className="etch-wafer-caption etch-mono">WAFER MAP · REAL-TIME BIN STATUS</p>
+      <p className="etch-wafer-caption etch-mono">Wafer is the bitcoin of 2026 </p>  
     </div>
   )
 }
@@ -450,9 +450,9 @@ export default function Landing({ onEnter }) {
       </div>
 
       <div className="etch-footer etch-mono">
-        <span>DHOLERA · AHMEDABAD · INDIA</span>
-        <span>FAB OPS TOOLING</span>
-      </div>
+        <span>DHOLERA</span>
+        <span>Built by FMCS</span>
+      </div>    
     </div>
   )
 }        
