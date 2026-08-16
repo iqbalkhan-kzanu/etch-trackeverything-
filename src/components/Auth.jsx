@@ -603,10 +603,10 @@ export default function Auth({ onAuthenticated, onBack }) {
           </div>
 
           <p className="text-center font-mono text-[10px] uppercase tracking-wider text-ink-muted/60 mt-5 flex items-center justify-center gap-1.5">
-            <ShieldIcon className="w-3 h-3" /> Encrypted Session · ETCH Identity Gateway
+            <ShieldIcon className="w-3 h-3" /> BUILD SEMICON BUILD INDIA 
           </p>
         </div>
       </div>
     </div>
   )
-}    
+}       

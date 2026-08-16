@@ -49,9 +49,9 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
     <div className="fixed inset-0 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-6 z-50">
       <div className="relative bg-surface border border-line rounded-xl p-6 w-full max-w-md shadow-xl overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: MANAGER_COLOR }} />
-        <p className="font-mono text-xs uppercase tracking-wider mb-1" style={{ color: MANAGER_COLOR }}>Manager Assignment</p>
+        <p className="font-mono text-xs uppercase tracking-wider mb-1" style={{ color: MANAGER_COLOR }}>DF1 DHOLERA </p>
         <h2 className="text-xl font-semibold text-ink mb-1">Assign work to {assignee.name}</h2>
-        <p className="text-sm text-ink-muted mb-5">They'll be notified with a direct message automatically.</p>
+        <p className="text-sm text-ink-muted mb-5">ONE TEAM ONE DREAM ONE SEMI</p>    
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Title</label>
@@ -80,5 +80,5 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
         </form>
       </div>
     </div>
-  )
-}   
+  )  
+}     
