@@ -2,28 +2,31 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 
 const TEAM_META = {
-  FMCS: { color: '#2B6CB0' },
-  HVAC: { color: '#D9A824' },
-  UPW: { color: '#1F9E9E' },
-  ELECTRICAL: { color: '#C1443C' },
-  'GAS & CHEMICAL': { color: '#7C5CBF' },
-  HR: { color: '#C15A9E' },
-  SAFETY: { color: '#E07B39' },
-  MODULE: { color: '#5C6670' },
+  FMCS: { color: '#2B6CB0', bg: '#EFF6FF' },
+  HVAC: { color: '#D9A824', bg: '#FFFBEB' },
+  UPW: { color: '#1F9E9E', bg: '#ECFEFE' },
+  ELECTRICAL: { color: '#C1443C', bg: '#FEF2F2' },
+  'GAS & CHEMICAL': { color: '#7C5CBF', bg: '#F5F3FF' },
+  HR: { color: '#C15A9E', bg: '#FDF2F8' },
+  SAFETY: { color: '#E07B39', bg: '#FFF7ED' },
+  MODULE: { color: '#5C6670', bg: '#F8FAFC' },
 }
 
 export default function Directory({ user, onMessage }) {
   const [profiles, setProfiles] = useState([])
   const [unreadBySender, setUnreadBySender] = useState({})
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
 
   async function loadProfiles() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .order('name', { ascending: true })
 
-    setProfiles(data || [])
+    if (!error) {
+      setProfiles(data || [])
+    }
   }
 
   async function loadUnreadMessages() {
@@ -43,7 +46,8 @@ export default function Directory({ user, onMessage }) {
     const counts = {}
 
     ;(data || []).forEach((message) => {
-      counts[message.sender_id] = (counts[message.sender_id] || 0) + 1
+      counts[message.sender_id] =
+        (counts[message.sender_id] || 0) + 1
     })
 
     setUnreadBySender(counts)
@@ -61,7 +65,6 @@ export default function Directory({ user, onMessage }) {
 
     load()
 
-    // Check for new messages every 5 seconds
     const interval = setInterval(() => {
       loadUnreadMessages()
     }, 5000)
@@ -69,123 +72,295 @@ export default function Directory({ user, onMessage }) {
     return () => clearInterval(interval)
   }, [user?.id])
 
+  const filteredProfiles = profiles.filter((p) => {
+    const term = search.toLowerCase().trim()
+
+    if (!term) return true
+
+    return (
+      p.name?.toLowerCase().includes(term) ||
+      p.email?.toLowerCase().includes(term) ||
+      p.team?.toLowerCase().includes(term) ||
+      p.employee_id?.toString().includes(term)
+    )
+  })
+
   const grouped = {}
 
-  profiles.forEach((p) => {
-    const key = p.team || 'Unassigned'
+  filteredProfiles.forEach((p) => {
+    const team = p.team || 'Unassigned'
 
-    if (!grouped[key]) {
-      grouped[key] = []
+    if (!grouped[team]) {
+      grouped[team] = []
     }
 
-    grouped[key].push(p)
+    grouped[team].push(p)
   })
 
   const teamKeys = Object.keys(grouped).sort()
 
+  const totalUnread = Object.values(unreadBySender).reduce(
+    (sum, count) => sum + count,
+    0
+  )
+
+  function getInitials(name) {
+    if (!name) return '?'
+
+    return name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join('')
+      .toUpperCase()
+  }
+
   return (
-    <div>
-      <h2 className="text-xl font-semibold text-ink mb-1">
-        Team Directory
-      </h2>
+    <div className="max-w-6xl mx-auto">
 
-      <p className="text-sm text-ink-muted mb-6">
-        {profiles.length} registered member
-        {profiles.length !== 1 ? 's' : ''} across {teamKeys.length} team
-        {teamKeys.length !== 1 ? 's' : ''}
-      </p>
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-8">
 
-      {loading ? (
-        <p className="text-ink-muted font-mono text-sm">
-          Loading…
-        </p>
-      ) : profiles.length === 0 ? (
-        <div className="border border-dashed border-line rounded-xl p-10 text-center bg-surface">
-          <p className="text-ink font-medium">
-            No members registered yet.
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <h2 className="text-2xl font-semibold text-ink">
+              Team Directory
+            </h2>
+
+            {totalUnread > 0 && (
+              <span className="px-2.5 py-1 rounded-full bg-red-50 text-red-600 text-xs font-semibold">
+                {totalUnread} unread
+              </span>
+            )}
+          </div>
+
+          <p className="text-sm text-ink-muted">
+            {profiles.length} members across{' '}
+            {new Set(profiles.map((p) => p.team).filter(Boolean)).size}{' '}
+            teams
           </p>
         </div>
+
+        {/* SEARCH */}
+        <div className="relative w-full md:w-72">
+
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"
+            />
+          </svg>
+
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search people or teams..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-line bg-surface text-sm text-ink outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+          />
+
+        </div>
+      </div>
+
+      {/* LOADING */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <p className="text-ink-muted font-mono text-sm">
+            Loading directory…
+          </p>
+        </div>
+      ) : teamKeys.length === 0 ? (
+        <div className="border border-dashed border-line rounded-2xl p-12 text-center bg-surface">
+          <p className="text-ink font-medium">
+            No members found.
+          </p>
+
+          {search && (
+            <p className="text-sm text-ink-muted mt-1">
+              Try a different search.
+            </p>
+          )}
+        </div>
       ) : (
-        <div className="space-y-6">
+
+        /* TEAM SECTIONS */
+        <div className="space-y-7">
+
           {teamKeys.map((team) => {
-            const color = TEAM_META[team]?.color || '#5C6670'
+
+            const meta = TEAM_META[team] || {
+              color: '#5C6670',
+              bg: '#F8FAFC',
+            }
+
             const members = grouped[team]
 
             return (
-              <div
-                key={team}
-                className="border border-line rounded-xl bg-surface shadow-sm overflow-hidden"
-              >
-                <div
-                  className="flex items-center gap-2 px-5 py-3 border-b border-line"
-                  style={{ backgroundColor: `${color}0D` }}
-                >
-                  <span
-                    className="w-2.5 h-2.5 rounded-full"
-                    style={{ backgroundColor: color }}
-                  />
+              <section key={team}>
 
-                  <p className="font-semibold" style={{ color }}>
-                    {team}
-                  </p>
+                {/* TEAM HEADER */}
+                <div className="flex items-center justify-between mb-3 px-1">
 
-                  <span className="font-mono text-[11px] text-ink-muted ml-auto">
-                    {members.length} member
-                    {members.length !== 1 ? 's' : ''}
-                  </span>
+                  <div className="flex items-center gap-3">
+
+                    <div
+                      className="w-9 h-9 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: meta.bg }}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: meta.color }}
+                      />
+                    </div>
+
+                    <div>
+                      <h3
+                        className="font-semibold text-sm"
+                        style={{ color: meta.color }}
+                      >
+                        {team}
+                      </h3>
+
+                      <p className="text-xs text-ink-muted">
+                        {members.length}{' '}
+                        {members.length === 1 ? 'member' : 'members'}
+                      </p>
+                    </div>
+
+                  </div>
+
                 </div>
 
-                <div className="divide-y divide-line">
+                {/* MEMBER GRID */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+
                   {members.map((m) => {
-                    const unreadCount = unreadBySender[m.id] || 0
+
+                    const unreadCount =
+                      unreadBySender[m.id] || 0
+
+                    const isSelf =
+                      user && m.id === user.id
 
                     return (
                       <div
                         key={m.id}
-                        className="flex items-center justify-between px-5 py-3 gap-3"
+                        className={`group relative bg-surface border rounded-xl p-4 transition-all ${
+                          unreadCount > 0
+                            ? 'border-red-200 shadow-sm'
+                            : 'border-line hover:border-gray-300 hover:shadow-sm'
+                        }`}
                       >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium text-ink">
-                              {m.name}
-                            </p>
 
-                            {unreadCount > 0 && (
-                              <span className="min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                                {unreadCount > 99 ? '99+' : unreadCount}
-                              </span>
-                            )}
+                        {/* UNREAD INDICATOR */}
+                        {unreadCount > 0 && (
+                          <div className="absolute top-3 right-3">
+                            <span className="min-w-6 h-6 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center shadow-sm">
+                              {unreadCount > 99
+                                ? '99+'
+                                : unreadCount}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-3">
+
+                          {/* AVATAR */}
+                          <div
+                            className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 text-sm font-semibold"
+                            style={{
+                              backgroundColor: meta.bg,
+                              color: meta.color,
+                            }}
+                          >
+                            {getInitials(m.name)}
                           </div>
 
-                          <p className="text-xs text-ink-muted mt-0.5">
-                            {m.email}
-                          </p>
+                          {/* PERSON INFO */}
+                          <div className="min-w-0 flex-1">
+
+                            <div className="flex items-center gap-2 pr-8">
+
+                              <p className="font-semibold text-sm text-ink truncate">
+                                {m.name}
+                              </p>
+
+                              {isSelf && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-ink-muted">
+                                  You
+                                </span>
+                              )}
+
+                            </div>
+
+                            <p className="text-xs text-ink-muted truncate mt-0.5">
+                              {m.email}
+                            </p>
+
+                          </div>
+
                         </div>
 
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="font-mono text-xs text-ink-muted border border-line rounded px-2 py-1">
-                            {m.employee_id || '—'}
-                          </span>
+                        {/* BOTTOM INFORMATION */}
+                        <div className="flex items-center justify-between mt-4 pt-3 border-t border-line">
 
-                          {user && m.id !== user.id && (
+                          <div className="flex items-center gap-2">
+
+                            <span className="text-[10px] uppercase tracking-wide text-ink-muted">
+                              ID
+                            </span>
+
+                            <span className="font-mono text-xs text-ink-muted">
+                              {m.employee_id || '—'}
+                            </span>
+
+                          </div>
+
+                          {!isSelf && (
                             <button
                               onClick={() => onMessage(m)}
-                              className="text-xs font-medium text-white px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity"
-                              style={{ backgroundColor: color }}
+                              className="text-xs font-semibold px-3.5 py-1.5 rounded-lg text-white transition-all hover:opacity-90 active:scale-95"
+                              style={{
+                                backgroundColor: meta.color,
+                              }}
                             >
                               Message
                             </button>
                           )}
+
                         </div>
+
+                        {/* UNREAD MESSAGE TEXT */}
+                        {unreadCount > 0 && (
+                          <div className="mt-3 px-3 py-2 rounded-lg bg-red-50">
+                            <p className="text-xs text-red-600 font-medium">
+                              {unreadCount === 1
+                                ? 'New unread message'
+                                : `${unreadCount} unread messages`}
+                            </p>
+                          </div>
+                        )}
+
                       </div>
                     )
                   })}
+
                 </div>
-              </div>
+
+              </section>
             )
           })}
+
         </div>
       )}
+
     </div>
   )
-}    
+}         
