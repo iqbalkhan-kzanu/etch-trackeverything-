@@ -79,6 +79,6 @@ export default function ChatModal({ currentUser, recipient, onClose }) {
           </button>
         </form>
       </div>
-    </div>
+    </div>  
   )
 }   

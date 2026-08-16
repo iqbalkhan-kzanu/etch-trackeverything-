@@ -88,4 +88,4 @@ export default function Directory({ currentUser, onMessage }) {
       )}
     </div>
   )
-}      
+}          

@@ -66,7 +66,7 @@ export default function Messages({ currentUser, onOpenChat }) {
             </button>
           ))}
         </div>
-      )}
+      )}    
     </div>
-  )
+  ) 
 }       
