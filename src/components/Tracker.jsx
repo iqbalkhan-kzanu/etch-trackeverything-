@@ -438,9 +438,16 @@ export default function Tracker({ user, onLogout }) {
   const scopedItems = items.filter((i) => {
     if (nav === 'mine') return i.owner_name === user?.name
     if (nav === 'general') return i.visibility === 'general'
-    if (nav === 'team') return i.visibility === 'team' && i.team === user?.team
+    if (nav === 'team') {
+      const visibleToTeam = i.visibility === 'team' && i.team === user?.team
+      const pendingForManager =
+        i.status === 'pending_approval' &&
+        i.team === user?.team &&
+        user?.role === 'MANAGER'
+      return visibleToTeam || pendingForManager
+    }
     return true
-  })
+  })    
 
   const filtered = scopedItems.filter((i) => {
     if (filterStatus !== 'all' && i.status !== filterStatus) return false
