@@ -77,12 +77,20 @@ function WaferGrid({ className = '' }) {
   )
 }      
 
-function StatTile({ label, value, topColor }) {
+// Neutral by default; only lights up (accent-red) when it's carrying an alert
+// (currently: Overdue). Every other tile stays mono so the one that matters
+// actually stands out instead of competing with five other hues.
+function StatTile({ label, value, alert = false }) {
+  const isAlert = alert && value > 0
   return (
-    <div className="relative border border-line rounded-xl bg-surface px-6 py-5 shadow-sm overflow-hidden">
-      <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: topColor }} />
-      <p className="font-mono text-xs uppercase tracking-wider text-ink-muted mb-2">{label}</p>
-      <p className="font-mono text-4xl font-semibold" style={{ color: topColor }}>{value}</p>
+    <div className="border border-line rounded-md bg-surface px-5 py-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted">{label}</p>
+        {isAlert && <div className="w-1.5 h-1.5 rounded-full bg-accent-red" />}
+      </div>
+      <p className={`font-mono text-3xl font-semibold tabular-nums ${isAlert ? 'text-accent-red' : 'text-ink'}`}>
+        {String(value).padStart(2, '0')}
+      </p>
     </div>
   )
 }
@@ -110,6 +118,9 @@ function Timeline({ entries }) {
   )
 }
 
+// Segmented indicator instead of a rounded pill split — reuses the same
+// visual language as StageBar so the sidebar reads as part of the same
+// system rather than a bolted-on widget.
 function OwnerStatusPanel({ items }) {
   const active = items.filter((i) => i.status !== 'closed')
   const byOwner = {}
@@ -124,33 +135,45 @@ function OwnerStatusPanel({ items }) {
   const totalOnTime = ownerStats.reduce((sum, o) => sum + o.onTime, 0)
 
   return (
-    <div className="lg:sticky lg:top-6 border border-line rounded-xl bg-surface p-5 shadow-sm h-fit">
-      <p className="font-mono text-xs uppercase tracking-wider text-ink-muted mb-1">Team Status</p>
-      <h3 className="text-lg font-semibold text-ink mb-1">On Time vs Late</h3>
-      <div className="flex gap-3 mb-5">
-        <span className="font-mono text-[11px] text-accent-green">{totalOnTime} on time</span>
-        <span className="font-mono text-[11px] text-accent-red">{totalLate} late</span>
+    <div className="lg:sticky lg:top-6 border border-line rounded-md bg-surface p-5 h-fit">
+      <div className="flex items-baseline justify-between mb-4 pb-4 border-b border-line">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted mb-1">Team Status</p>
+          <h3 className="text-base font-semibold text-ink">On Time vs Late</h3>
+        </div>
+        <p className="font-mono text-xs">
+          <span className="text-ink">{totalOnTime}</span>
+          <span className="text-ink-muted">/{totalOnTime + totalLate}</span>
+        </p>
       </div>
+
       {ownerStats.length === 0 ? (
         <p className="text-sm text-ink-muted">No active items yet.</p>
       ) : (
         <div className="space-y-4">
           {ownerStats.map((o) => {
             const total = o.onTime + o.late
+            const segments = 8
+            const lateSeg = Math.round((o.late / total) * segments)
+            const onSeg = segments - lateSeg
             return (
               <div key={o.owner}>
-                <div className="flex items-center justify-between mb-1 gap-2">
-                  <span className="text-sm font-medium text-ink truncate">{o.owner}</span>
+                <div className="flex items-baseline justify-between mb-1.5">
+                  <span className="text-sm text-ink truncate">{o.owner}</span>
                   <span className="font-mono text-[10px] text-ink-muted shrink-0">{total} active</span>
                 </div>
-                <div className="flex h-2 rounded-full overflow-hidden bg-line">
-                  {o.onTime > 0 && <div className="bg-accent-green" style={{ width: `${(o.onTime / total) * 100}%` }} />}
-                  {o.late > 0 && <div className="bg-accent-red" style={{ width: `${(o.late / total) * 100}%` }} />}
+                <div className="flex gap-0.5">
+                  {Array.from({ length: segments }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-1 flex-1"
+                      style={{ backgroundColor: i < onSeg ? '#2F8F5B' : '#C1443C' }}
+                    />
+                  ))}
                 </div>
-                <div className="flex justify-between mt-1">
-                  <span className="font-mono text-[10px] text-accent-green">{o.onTime} on time</span>
-                  {o.late > 0 && <span className="font-mono text-[10px] text-accent-red">{o.late} late</span>}
-                </div>
+                {o.late > 0 && (
+                  <p className="font-mono text-[10px] text-accent-red mt-1">{o.late} late</p>
+                )}
               </div>
             )
           })}
@@ -435,6 +458,11 @@ export default function Tracker({ user, onLogout }) {
     loadItems()
   }
 
+  // "team" scope also surfaces items that are PRIVATE but currently
+  // pending_approval, so a manager can still see and act on them even
+  // though the owner never made the item team-visible. Without this, a
+  // private item submitted for approval was invisible to the approving
+  // manager on every tab.
   const scopedItems = items.filter((i) => {
     if (nav === 'mine') return i.owner_name === user?.name
     if (nav === 'general') return i.visibility === 'general'
@@ -447,7 +475,7 @@ export default function Tracker({ user, onLogout }) {
       return visibleToTeam || pendingForManager
     }
     return true
-  })    
+  })
 
   const filtered = scopedItems.filter((i) => {
     if (filterStatus !== 'all' && i.status !== filterStatus) return false
@@ -594,12 +622,12 @@ export default function Tracker({ user, onLogout }) {
                 />
               )}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-                <StatTile label="Open" value={counts.open} topColor={STATUS_STYLES.open.top} />
-                <StatTile label="In Progress" value={counts.in_progress} topColor={STATUS_STYLES.in_progress.top} />
-                <StatTile label="Ready to Close" value={counts.ready_to_close} topColor={STATUS_STYLES.ready_to_close.top} />
-                <StatTile label="Pending Approval" value={counts.pending_approval} topColor={STATUS_STYLES.pending_approval.top} />
-                <StatTile label="Closed" value={counts.closed} topColor={STATUS_STYLES.closed.top} />
-                <StatTile label="Overdue" value={counts.overdue} topColor="#C1443C" />
+                <StatTile label="Open" value={counts.open} />
+                <StatTile label="In Progress" value={counts.in_progress} />
+                <StatTile label="Ready to Close" value={counts.ready_to_close} />
+                <StatTile label="Pending Approval" value={counts.pending_approval} />
+                <StatTile label="Closed" value={counts.closed} />
+                <StatTile label="Overdue" value={counts.overdue} alert />
               </div>
 
               {error && <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-lg p-3 mb-4 text-sm font-mono">{error}</div>}
@@ -816,4 +844,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}        
+}       
