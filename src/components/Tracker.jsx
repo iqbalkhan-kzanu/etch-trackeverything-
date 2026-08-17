@@ -429,13 +429,14 @@ export default function Tracker({ user, onLogout }) {
       item_id: item.id, actor: user?.name || 'Unknown', action: 'submitted_for_approval', note,
     }])
 
-    if (!mgrError && managerProfile) {
-      await supabase.from('messages').insert([{
+    if (!mgrError && managerProfile && managerProfile.id !== user?.id) {
+      const { error: msgError } = await supabase.from('messages').insert([{
         sender_id: user?.id,
         recipient_id: managerProfile.id,
         body: `${user?.name} submitted "${item.title}" for your approval (due ${item.deadline}).`,
       }])
-    } else {
+      if (msgError) console.error('notify manager failed:', msgError.message)
+    } else if (mgrError || !managerProfile) {
       setError(`Submitted, but no manager is set up for team "${item.team}" — they weren't notified.`)
     }
 
@@ -468,12 +469,13 @@ export default function Tracker({ user, onLogout }) {
     await supabase.from('item_activity').insert([{ item_id: item.id, actor: user?.name || 'Unknown', action: 'approved_closed' }])
 
     const { data: ownerProfile } = await supabase.from('profiles').select('id').eq('name', item.owner_name).maybeSingle()
-    if (ownerProfile) {
-      await supabase.from('messages').insert([{
+    if (ownerProfile && ownerProfile.id !== user?.id) {
+      const { error: msgError } = await supabase.from('messages').insert([{
         sender_id: user?.id,
         recipient_id: ownerProfile.id,
         body: `${user?.name} approved and closed "${item.title}".`,
       }])
+      if (msgError) console.error('notify owner failed:', msgError.message)
     }
     loadItems()
   }
@@ -489,12 +491,13 @@ export default function Tracker({ user, onLogout }) {
     await supabase.from('item_activity').insert([{ item_id: item.id, actor: user?.name || 'Unknown', action: 'sent_back', note }])
 
     const { data: ownerProfile } = await supabase.from('profiles').select('id').eq('name', item.owner_name).maybeSingle()
-    if (ownerProfile) {
-      await supabase.from('messages').insert([{
+    if (ownerProfile && ownerProfile.id !== user?.id) {
+      const { error: msgError } = await supabase.from('messages').insert([{
         sender_id: user?.id,
         recipient_id: ownerProfile.id,
         body: `${user?.name} sent "${item.title}" back for re-examination: ${note}`,
       }])
+      if (msgError) console.error('notify owner failed:', msgError.message)
     }
     setSendingBackItem(null)
     loadItems()
@@ -518,12 +521,13 @@ export default function Tracker({ user, onLogout }) {
     await supabase.from('item_activity').insert([{ item_id: item.id, actor: user?.name || 'Unknown', action: 'flagged_blocked', note: reason }])
 
     const { data: managerProfile } = await supabase.from('profiles').select('id').eq('team', item.team).eq('role', 'MANAGER').maybeSingle()
-    if (managerProfile) {
-      await supabase.from('messages').insert([{
+    if (managerProfile && managerProfile.id !== user?.id) {
+      const { error: msgError } = await supabase.from('messages').insert([{
         sender_id: user?.id,
         recipient_id: managerProfile.id,
         body: `${user?.name} flagged "${item.title}" as blocked: ${reason}`,
       }])
+      if (msgError) console.error('notify manager failed:', msgError.message)
     }
     setBlockEditing((prev) => ({ ...prev, [item.id]: false }))
     loadItems()
@@ -1125,4 +1129,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}     
+}    
