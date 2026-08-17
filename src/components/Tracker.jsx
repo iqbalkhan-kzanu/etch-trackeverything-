@@ -160,65 +160,45 @@ function OwnerStatusPanel({ items }) {
   )
 }
 
-function getInitials(name) {
-  if (!name) return '?'
-  return name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
-}
-
 function AnnouncementsPanel({ announcements, loading, user, draft, onDraftChange, onSubmit, posting }) {
   return (
-    <div className="border border-line rounded-xl bg-surface shadow-sm mb-8 overflow-hidden">
-      <div className="px-5 py-4 border-b border-line flex items-center justify-between">
-        <div>
-          <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-0.5">Fab-wide</p>
-          <h3 className="text-lg font-semibold text-ink">Announcements</h3>
-        </div>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">{announcements.length} posted</span>
+    <div className="w-full max-w-sm border border-line rounded-lg bg-surface shadow-sm overflow-hidden mb-6">
+      <div className="px-4 py-2.5 border-b border-line flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-ink">Announcements</h3>
+        <span className="font-mono text-[10px] text-ink-muted">{announcements.length}</span>
       </div>
 
-      <form onSubmit={onSubmit} className="px-5 py-4 border-b border-line flex gap-3 items-start">
-        <div className="w-9 h-9 rounded-full bg-accent-blue/10 text-accent-blue flex items-center justify-center text-xs font-semibold shrink-0">
-          {getInitials(user?.name)}
-        </div>
-        <div className="flex-1 min-w-0">
-          <textarea
-            rows={2}
-            placeholder="Share something with everyone on the floor…"
-            className="w-full border border-line rounded-md p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue resize-none"
-            value={draft}
-            onChange={(e) => onDraftChange(e.target.value)}
-          />
-          <div className="flex justify-end mt-2">
-            <button
-              type="submit"
-              disabled={posting || !draft.trim()}
-              className="bg-accent-blue text-white text-sm px-4 py-1.5 rounded-md font-medium hover:bg-accent-blue/90 transition-colors disabled:opacity-50"
-            >
-              {posting ? 'Posting…' : 'Post Announcement'}
-            </button>
-          </div>
-        </div>
+      <form onSubmit={onSubmit} className="px-4 py-2.5 border-b border-line flex items-center gap-2">
+        <input
+          type="text"
+          placeholder="Post something…"
+          className="flex-1 min-w-0 border border-line rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
+          value={draft}
+          onChange={(e) => onDraftChange(e.target.value)}
+        />
+        <button
+          type="submit"
+          disabled={posting || !draft.trim()}
+          className="shrink-0 bg-accent-blue text-white text-xs px-3 py-1.5 rounded-md font-medium hover:bg-accent-blue/90 transition-colors disabled:opacity-50"
+        >
+          {posting ? '…' : 'Post'}
+        </button>
       </form>
 
-      <div className="max-h-96 overflow-y-auto divide-y divide-line">
+      <div className="max-h-40 overflow-y-auto divide-y divide-line">
         {loading ? (
-          <p className="text-ink-muted font-mono text-sm px-5 py-6">Loading announcements…</p>
+          <p className="text-ink-muted font-mono text-[11px] px-4 py-3">Loading…</p>
         ) : announcements.length === 0 ? (
-          <p className="text-ink-muted text-sm px-5 py-6 text-center">No announcements yet. Be the first to post one.</p>
+          <p className="text-ink-muted text-xs px-4 py-3 text-center">No announcements yet.</p>
         ) : (
           announcements.map((a) => (
-            <div key={a.id} className="px-5 py-4 flex gap-3">
-              <div className="w-9 h-9 rounded-full bg-accent-blue/10 text-accent-blue flex items-center justify-center text-xs font-semibold shrink-0">
-                {getInitials(a.author_name)}
+            <div key={a.id} className="px-4 py-2.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-medium text-xs text-ink">{a.author_name}</span>
+                {a.author_team && <span className="font-mono text-[9px] uppercase tracking-wider text-ink-muted">{a.author_team}</span>}
+                <span className="font-mono text-[9px] text-ink-muted">· {formatTime(a.created_at)}</span>
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-sm text-ink">{a.author_name}</span>
-                  {a.author_team && <span className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">{a.author_team}</span>}
-                  <span className="font-mono text-[10px] text-ink-muted">· {formatTime(a.created_at)}</span>
-                </div>
-                <p className="text-sm text-ink mt-1 whitespace-pre-wrap">{a.body}</p>
-              </div>
+              <p className="text-xs text-ink mt-0.5 leading-snug">{a.body}</p>
             </div>
           ))
         )}
@@ -808,4 +788,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}   
+}        
