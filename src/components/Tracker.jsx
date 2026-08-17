@@ -287,8 +287,7 @@ export default function Tracker({ user, onLogout }) {
   const [mentorDraft, setMentorDraft] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [nav, setNav] = useState('mine') // 'mine' | 'general' | 'team' | 'today' | 'safety'
-  const [darkMode, setDarkMode] = useState(false)
+  const [nav, setNav] = useState('mine') // 'mine' | 'general' | 'team' | 'safety'
   const [chatUser, setChatUser] = useState(null)    
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [filterStatus, setFilterStatus] = useState('all')
@@ -358,22 +357,6 @@ export default function Tracker({ user, onLogout }) {
   }
 
   useEffect(() => { loadItems(); loadAnnouncements() }, [])
-
-  useEffect(() => {
-    const stored = localStorage.getItem('etch-theme')
-    const isDark = stored === 'dark'
-    setDarkMode(isDark)
-    document.documentElement.classList.toggle('dark', isDark)
-  }, [])
-
-  function toggleDarkMode() {
-    setDarkMode((prev) => {
-      const next = !prev
-      document.documentElement.classList.toggle('dark', next)
-      localStorage.setItem('etch-theme', next ? 'dark' : 'light')
-      return next
-    })
-  }
 
   useEffect(() => {
     loadUnreadMessages()
@@ -536,11 +519,6 @@ export default function Tracker({ user, onLogout }) {
   // manager on every tab.
   const scopedItems = items.filter((i) => {
     if (nav === 'mine') return i.owner_name === user?.name
-    if (nav === 'today') {
-      if (i.owner_name !== user?.name || i.status === 'closed') return false
-      const dueTodayOrPast = new Date(i.deadline) <= new Date(new Date().toDateString())
-      return dueTodayOrPast || i.severity === 'critical'
-    }
     if (nav === 'general') return i.visibility === 'general'
     if (nav === 'team') {
       const visibleToTeam = i.visibility === 'team' && i.team === user?.team
@@ -581,7 +559,7 @@ export default function Tracker({ user, onLogout }) {
     critical: scopedItems.filter((i) => i.status !== 'closed' && i.severity === 'critical').length,
   }
 
-  const navTitle = { mine: 'My Tasks', today: 'My Day', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory' }[nav]       
+  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory' }[nav]       
 
   const navItem = (key, label) => (
     <button
@@ -595,7 +573,7 @@ export default function Tracker({ user, onLogout }) {
   )         
 
   return (
-    <div className="min-h-screen flex bg-canvas font-sans text-ink relative">        
+    <div className="min-h-screen flex bg-gradient-to-br from-[#F5F6F7] via-[#EFF1F2] to-[#E4E7EA] font-sans text-ink relative">        
       <WaferGrid />
 
 {chatUser && (  
@@ -646,7 +624,6 @@ export default function Tracker({ user, onLogout }) {
           </div>
           <p className="font-mono text-[10px] uppercase tracking-wider text-white/30 mb-2 px-3.5">Navigate</p>
           <nav className="space-y-1">
-            {navItem('today', 'My Day')}
             {navItem('mine', 'My Tasks')}
             {navItem('general', 'General')}
             {navItem('team', 'My Team')}
@@ -667,16 +644,7 @@ export default function Tracker({ user, onLogout }) {
         <div className="border-t border-white/10 pt-4">
           <p className="text-sm font-medium">{user?.name}</p>
           <p className="font-mono text-[11px] uppercase tracking-wider text-white/50">{user?.team}</p>
-          <div className="flex items-center justify-between mt-3">
-            <button onClick={onLogout} className="font-mono text-[11px] uppercase tracking-wider text-white/50 hover:text-white transition-colors">Log Out</button>
-            <button
-              onClick={toggleDarkMode}
-              className="font-mono text-[11px] uppercase tracking-wider text-white/50 hover:text-white transition-colors border border-white/10 rounded-md px-2 py-1"
-              title="Toggle dark mode"
-            >
-              {darkMode ? '☀ Light' : '● Dark'}
-            </button>
-          </div>
+          <button onClick={onLogout} className="mt-3 font-mono text-[11px] uppercase tracking-wider text-white/50 hover:text-white transition-colors">Log Out</button>
         </div>
       </aside>
 
@@ -691,7 +659,7 @@ export default function Tracker({ user, onLogout }) {
             <span className="text-sm font-medium text-ink">{user?.name}</span>
             <button onClick={onLogout} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted border border-line rounded-md px-3 py-2">Log Out</button>
           </div>
-          {nav !== 'safety' && nav !== 'directory' && nav !== 'today' && (     
+          {nav !== 'safety' && nav !== 'directory' && (     
             <button onClick={() => setShowForm((s) => !s)} className="bg-accent-blue text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-blue/90 transition-colors">
               {showForm ? 'Cancel' : '+ New Action Item'}
             </button>
@@ -950,7 +918,7 @@ export default function Tracker({ user, onLogout }) {
                                 <textarea autoFocus rows={2} placeholder="Leave a comment on this item's progress… use @Name to notify someone"
                                   className="w-full bg-surface border border-line rounded-md p-2 text-sm focus:outline-none focus:ring-2"
                                   value={mentorDraft[item.id] || ''} onChange={(e) => setMentorDraft((p) => ({ ...p, [item.id]: e.target.value }))} />
-                                <p className="font-mono text-[10px] text-ink-muted mt-1">Tip: @Name notifies them directly · use @"Full Name" for names with spaces</p>
+                                <p className="font-mono text-[10px] text-ink-muted mt-1">Notify the person</p>     
                                 <div className="flex gap-2 mt-2 justify-end">
                                   <button onClick={() => setMentorEditing((p) => ({ ...p, [item.id]: false }))} className="text-xs px-3 py-1.5 rounded-md text-ink-muted hover:text-ink">Cancel</button>
                                   <button onClick={() => saveMentorComment(item)} className="text-xs px-3 py-1.5 rounded-md text-white font-medium" style={{ backgroundColor: MENTOR_COLOR }}>Post Comment</button>
@@ -977,4 +945,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}       
+}      
