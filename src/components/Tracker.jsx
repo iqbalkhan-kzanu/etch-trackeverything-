@@ -32,6 +32,8 @@ const ACTION_META = {
   approved_closed: { label: 'Approved & closed', color: '#2F8F5B' },
   sent_back: { label: 'Sent back for re-examination', color: '#C1443C' },
   mentor_comment: { label: 'Mentor commented', color: MENTOR_COLOR },
+  flagged_blocked: { label: 'Flagged as blocked', color: '#C1443C' },
+  unblocked: { label: 'Unblocked', color: '#2F8F5B' },
 }
 
 const SEVERITIES = ['low', 'medium', 'high', 'critical']
@@ -285,6 +287,8 @@ export default function Tracker({ user, onLogout }) {
   const [expanded, setExpanded] = useState({})
   const [mentorEditing, setMentorEditing] = useState({})
   const [mentorDraft, setMentorDraft] = useState({})
+  const [blockEditing, setBlockEditing] = useState({})
+  const [blockDraft, setBlockDraft] = useState({})
   const [profiles, setProfiles] = useState([])
   const [mentionState, setMentionState] = useState(null) // { itemId, query, start, end }
   const mentionInputRefs = useRef({})
@@ -439,10 +443,25 @@ export default function Tracker({ user, onLogout }) {
     loadItems()
   }
 
-  // Manager approves a pending item — closes it and notifies the owner.
+  // Manager approves a pending item — closes it, freezes the current
+  // work summary + files + timeline into close_snapshot so later edits to
+  // unrelated fields (e.g. a late mentor comment) can never quietly alter
+  // what was actually submitted as proof of completion.
   async function approveItem(item) {
+    const closeSnapshot = {
+      completion_note: item.completion_note || null,
+      completion_images: item.completion_images || [],
+      completion_files: item.completion_files || [],
+      timeline: (activity[item.id] || []).map((e) => ({
+        action: e.action, actor: e.actor, note: e.note || null, created_at: e.created_at,
+      })),
+      closed_by: user?.name || 'Unknown',
+      closed_at: new Date().toISOString(),
+    }
+
     const { error } = await supabase.from('action_items').update({
       status: 'closed', verified_by: user?.name || 'Unknown', verified_at: new Date().toISOString(), closure_note: null,
+      close_snapshot: closeSnapshot,
     }).eq('id', item.id)
     if (error) { setError(error.message); return }
 
@@ -478,6 +497,44 @@ export default function Tracker({ user, onLogout }) {
       }])
     }
     setSendingBackItem(null)
+    loadItems()
+  }
+
+  function openBlockEditor(item) {
+    setBlockDraft((prev) => ({ ...prev, [item.id]: '' }))
+    setBlockEditing((prev) => ({ ...prev, [item.id]: true }))
+  }
+
+  // Owner flags an item as blocked with a reason — distinct from "overdue",
+  // so a manager can see it's a dependency/obstacle, not neglect. Notifies
+  // the team's manager directly since that's usually who can unblock it.
+  async function flagBlocked(item) {
+    const reason = (blockDraft[item.id] || '').trim()
+    if (!reason) return
+    const { error } = await supabase.from('action_items').update({
+      blocked: true, blocked_reason: reason, blocked_by: user?.name || 'Unknown', blocked_at: new Date().toISOString(),
+    }).eq('id', item.id)
+    if (error) { setError(error.message); return }
+    await supabase.from('item_activity').insert([{ item_id: item.id, actor: user?.name || 'Unknown', action: 'flagged_blocked', note: reason }])
+
+    const { data: managerProfile } = await supabase.from('profiles').select('id').eq('team', item.team).eq('role', 'MANAGER').maybeSingle()
+    if (managerProfile) {
+      await supabase.from('messages').insert([{
+        sender_id: user?.id,
+        recipient_id: managerProfile.id,
+        body: `${user?.name} flagged "${item.title}" as blocked: ${reason}`,
+      }])
+    }
+    setBlockEditing((prev) => ({ ...prev, [item.id]: false }))
+    loadItems()
+  }
+
+  async function clearBlocked(item) {
+    const { error } = await supabase.from('action_items').update({
+      blocked: false, blocked_reason: null,
+    }).eq('id', item.id)
+    if (error) { setError(error.message); return }
+    await supabase.from('item_activity').insert([{ item_id: item.id, actor: user?.name || 'Unknown', action: 'unblocked' }])
     loadItems()
   }
 
@@ -844,9 +901,11 @@ export default function Tracker({ user, onLogout }) {
                         const isOpen = !!expanded[item.id]
                         const entries = activity[item.id] || []
                         const isEditingMentor = !!mentorEditing[item.id]
+                        const isBlockEditing = !!blockEditing[item.id]
+                        const isOwner = item.owner_name === user?.name
                         const isTeamManager = user?.role === 'MANAGER' && user?.team === item.team
                         return (
-                          <div key={item.id} className={`bg-surface border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow border-l-4 ${overdue ? 'border-l-accent-red border-line' : 'border-l-transparent border-line'}`}>
+                          <div key={item.id} className={`bg-surface border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow border-l-4 ${overdue ? 'border-l-accent-red border-line' : item.blocked ? 'border-l-accent-amber border-line' : 'border-l-transparent border-line'}`}>
                             <div className="flex justify-between items-center gap-4 flex-wrap">
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -870,6 +929,7 @@ export default function Tracker({ user, onLogout }) {
                                     </span>
                                   )}
                                   {overdue && <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-red/10 text-accent-red">Overdue</span>}
+                                  {item.blocked && <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-amber/10 text-accent-amber">🚧 Blocked</span>}
                                 </div>
                                 <p className="text-sm text-ink-muted mt-0.5 font-mono">
                                   {item.owner_name} {item.team && `· ${item.team}`} · due {item.deadline}
@@ -906,6 +966,23 @@ export default function Tracker({ user, onLogout }) {
                                   <button onClick={() => advanceStatus(item)} className="text-sm bg-ink text-white px-3 py-1.5 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap">{label}</button>
                                 )}
 
+                                {isOwner && item.status !== 'closed' && (
+                                  item.blocked ? (
+                                    <button
+                                      onClick={() => clearBlocked(item)}
+                                      className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border border-accent-amber text-accent-amber hover:bg-accent-amber/10 transition-colors"
+                                    >
+                                      Unblock
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => (isBlockEditing ? setBlockEditing((p) => ({ ...p, [item.id]: false })) : openBlockEditor(item))}
+                                      className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border border-line text-ink-muted hover:text-accent-amber hover:border-accent-amber transition-colors"
+                                    >
+                                      🚧 I'm Stuck
+                                    </button>
+                                  )
+                                )}
                                 <button
                                   onClick={() => (isEditingMentor ? setMentorEditing((p) => ({ ...p, [item.id]: false })) : openMentorEditor(item))}
                                   className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border transition-colors"
@@ -926,31 +1003,64 @@ export default function Tracker({ user, onLogout }) {
                               </div>
                             )}
 
-                            {(item.completion_note || (item.completion_images && item.completion_images.length > 0)) && (
-                              <div className="mt-3 rounded-lg px-3 py-2.5 text-sm bg-line/40" style={{ borderLeft: '3px solid #14181C' }}>
-                                <p className="font-mono text-[10px] uppercase tracking-wider text-ink-muted mb-1">Work Summary</p>
-                                {item.completion_note && <p className="text-ink mb-2">{item.completion_note}</p>}
-                                {item.completion_images && item.completion_images.length > 0 && (
-                                  <div className="flex flex-wrap gap-2 mb-2">
-                                    {item.completion_images.map((url, i) => (
-                                      <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="w-16 h-16 rounded-md overflow-hidden border border-line block">
-                                        <img src={url} alt="" className="w-full h-full object-cover" />
-                                      </a>
-                                    ))}
-                                  </div>
-                                )}
-                                {item.completion_files && item.completion_files.length > 0 && (
-                                  <div className="flex flex-wrap gap-2">
-                                    {item.completion_files.map((f, i) => (
-                                      <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
-                                        className="flex items-center gap-1.5 text-xs border border-line rounded-md px-2 py-1.5 text-ink-muted hover:text-accent-blue hover:border-accent-blue transition-colors">
-                                        📎 <span className="truncate max-w-[140px]">{f.name}</span>
-                                      </a>
-                                    ))}
-                                  </div>
-                                )}
+                            {item.blocked && item.blocked_reason && (
+                              <div className="mt-3 rounded-lg px-3 py-2 text-sm bg-accent-amber/10" style={{ borderLeft: '3px solid #D98C2B' }}>
+                                <p className="font-mono text-[10px] uppercase tracking-wider text-accent-amber mb-0.5">🚧 Blocked — {item.blocked_by}</p>
+                                <p className="text-ink">{item.blocked_reason}</p>
                               </div>
                             )}
+
+                            {isBlockEditing && (
+                              <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: '#D98C2B0D', border: '1px solid #D98C2B40' }}>
+                                <textarea autoFocus rows={2} placeholder="What's blocking you? (waiting on approval, missing data, dependency, etc.)"
+                                  className="w-full bg-surface border border-line rounded-md p-2 text-sm focus:outline-none focus:ring-2"
+                                  value={blockDraft[item.id] || ''} onChange={(e) => setBlockDraft((p) => ({ ...p, [item.id]: e.target.value }))} />
+                                <div className="flex gap-2 mt-2 justify-end">
+                                  <button onClick={() => setBlockEditing((p) => ({ ...p, [item.id]: false }))} className="text-xs px-3 py-1.5 rounded-md text-ink-muted hover:text-ink">Cancel</button>
+                                  <button onClick={() => flagBlocked(item)} className="text-xs px-3 py-1.5 rounded-md text-white font-medium bg-accent-amber hover:opacity-90">Flag as Blocked</button>
+                                </div>
+                              </div>
+                            )}
+
+                            {(() => {
+                              const snap = item.status === 'closed' ? item.close_snapshot : null
+                              const note = snap ? snap.completion_note : item.completion_note
+                              const images = snap ? snap.completion_images : item.completion_images
+                              const files = snap ? snap.completion_files : item.completion_files
+                              if (!note && !(images && images.length > 0) && !(files && files.length > 0)) return null
+                              return (
+                                <div className="mt-3 rounded-lg px-3 py-2.5 text-sm bg-line/40" style={{ borderLeft: '3px solid #14181C' }}>
+                                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                                    <p className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">Work Summary</p>
+                                    {snap && (
+                                      <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent-green/10 text-accent-green">
+                                        🔒 Locked at close · {snap.closed_by} · {formatTime(snap.closed_at)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {note && <p className="text-ink mb-2">{note}</p>}
+                                  {images && images.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                      {images.map((url, i) => (
+                                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="w-16 h-16 rounded-md overflow-hidden border border-line block">
+                                          <img src={url} alt="" className="w-full h-full object-cover" />
+                                        </a>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {files && files.length > 0 && (
+                                    <div className="flex flex-wrap gap-2">
+                                      {files.map((f, i) => (
+                                        <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
+                                          className="flex items-center gap-1.5 text-xs border border-line rounded-md px-2 py-1.5 text-ink-muted hover:text-accent-blue hover:border-accent-blue transition-colors">
+                                          📎 <span className="truncate max-w-[140px]">{f.name}</span>
+                                        </a>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })()}
 
                             {item.mentor_comment && !isEditingMentor && (
                               <div className="mt-3 rounded-lg px-3 py-2 text-sm" style={{ backgroundColor: `${MENTOR_COLOR}12`, borderLeft: `3px solid ${MENTOR_COLOR}` }}>
@@ -1015,4 +1125,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}   
+}     
