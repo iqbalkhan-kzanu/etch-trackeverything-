@@ -506,7 +506,7 @@ export default function Tracker({ user, onLogout }) {
   )         
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-[#EEF3F8] via-[#F5F7F9] to-[#E7ECF2] font-sans text-ink relative"> 
+    <div className="min-h-screen flex bg-gradient-to-br from-[#F5F6F7] via-[#EFF1F2] to-[#E4E7EA] font-sans text-ink relative">        
       <WaferGrid />
 
 {chatUser && (
