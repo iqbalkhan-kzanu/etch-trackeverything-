@@ -111,18 +111,22 @@ function WaferGrid({ className = '' }) {
   )
 }      
 
-// Neutral by default; only lights up (accent-red) when it's carrying an alert
-// (currently: Overdue). Every other tile stays mono so the one that matters
-// actually stands out instead of competing with five other hues.
-function StatTile({ label, value, alert = false }) {
+// Each tile gets a thin top accent + tinted number in its category color
+// (same muted tones used for status badges elsewhere), so the row reads as
+// a coherent, data-driven dashboard rather than five flat gray boxes.
+// Overdue/Critical still get the alert treatment (solid red + pulse dot)
+// so they visually outrank the rest when non-zero.
+function StatTile({ label, value, color = '#5C6670', alert = false }) {
   const isAlert = alert && value > 0
+  const accent = isAlert ? '#C1443C' : color
   return (
-    <div className="border border-line rounded-md bg-surface px-5 py-4">
+    <div className="relative overflow-hidden border border-line rounded-md bg-surface px-5 py-4">
+      <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ backgroundColor: accent }} />
       <div className="flex items-center justify-between mb-3">
         <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted">{label}</p>
-        {isAlert && <div className="w-1.5 h-1.5 rounded-full bg-accent-red" />}
+        {isAlert && <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: accent }} />}
       </div>
-      <p className={`font-mono text-3xl font-semibold tabular-nums ${isAlert ? 'text-accent-red' : 'text-ink'}`}>
+      <p className="font-mono text-3xl font-semibold tabular-nums" style={{ color: accent }}>
         {String(value).padStart(2, '0')}
       </p>
     </div>
@@ -796,11 +800,11 @@ export default function Tracker({ user, onLogout }) {
                 />
               )}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4 mb-8">
-                <StatTile label="Open" value={counts.open} />
-                <StatTile label="In Progress" value={counts.in_progress} />
-                <StatTile label="Ready to Close" value={counts.ready_to_close} />
-                <StatTile label="Pending Approval" value={counts.pending_approval} />
-                <StatTile label="Closed" value={counts.closed} />
+                <StatTile label="Open" value={counts.open} color="#5C6670" />
+                <StatTile label="In Progress" value={counts.in_progress} color="#2B6CB0" />
+                <StatTile label="Ready to Close" value={counts.ready_to_close} color="#D98C2B" />
+                <StatTile label="Pending Approval" value={counts.pending_approval} color="#7C5CBF" />
+                <StatTile label="Closed" value={counts.closed} color="#2F8F5B" />
                 <StatTile label="Overdue" value={counts.overdue} alert />
                 <StatTile label="Critical" value={counts.critical} alert />
               </div>
@@ -1129,4 +1133,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}    
+}     
