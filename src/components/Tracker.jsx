@@ -438,7 +438,7 @@ export default function Tracker({ user, onLogout }) {
   const scopedItems = items.filter((i) => {
     if (nav === 'mine') return i.owner_name === user?.name
     if (nav === 'general') return i.visibility === 'general'
-    if (nav === 'team') return i.visibility !== 'general' && i.team === user?.team
+    if (nav === 'team') return i.visibility === 'team' && i.team === user?.team
     return true
   })
 
@@ -635,6 +635,7 @@ export default function Tracker({ user, onLogout }) {
                     <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Visibility</label>
                     <select className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
                       value={form.visibility} onChange={(e) => setForm({ ...form, visibility: e.target.value })}>
+                      <option value="private">Only Me — Private</option>
                       <option value="team">My Team Only</option>
                       <option value="general">General — Visible to Everyone</option>
                     </select>
@@ -688,6 +689,9 @@ export default function Tracker({ user, onLogout }) {
                                   <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-line text-ink-muted">{item.source.replace('_', ' ')}</span>
                                   {item.visibility === 'general' && (
                                     <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-blue/10 text-accent-blue">General</span>
+                                  )}
+                                  {item.visibility === 'private' && (
+                                    <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-ink/5 text-ink-muted">Private</span>
                                   )}
                                   {item.assigned_by_mentor && (
                                     <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded" style={{ backgroundColor: '#7C5CBF15', color: '#7C5CBF' }}>
@@ -805,4 +809,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}    
+}        

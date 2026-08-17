@@ -23,7 +23,7 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
       team: mentor.team,
       source: 'project',
       deadline,
-      visibility: 'team',
+      visibility: 'private',
       assigned_by_mentor: mentor.name,
     }]).select()
 
@@ -81,4 +81,4 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
       </div>
     </div>
   )  
-}     
+}    
