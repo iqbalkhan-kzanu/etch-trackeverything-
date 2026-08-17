@@ -4,15 +4,15 @@ export default {
   theme: {
     extend: {
       colors: {
-        canvas: '#F4F6F7',
-        surface: '#FFFFFF',
-        ink: '#14181C',
-        'ink-muted': '#5C6670',
-        line: '#E1E5EA',
-        'accent-blue': '#2B6CB0',
-        'accent-amber': '#D98C2B',
-        'accent-green': '#2F8F5B',
-        'accent-red': '#C1443C',
+        canvas: 'var(--canvas)',
+        surface: 'var(--surface)',
+        ink: 'var(--ink)',
+        'ink-muted': 'var(--ink-muted)',
+        line: 'var(--line)',
+        'accent-blue': 'var(--accent-blue)',
+        'accent-amber': 'var(--accent-amber)',
+        'accent-green': 'var(--accent-green)',
+        'accent-red': 'var(--accent-red)',
       },
       fontFamily: {
         sans: ['"IBM Plex Sans"', 'sans-serif'],
@@ -21,4 +21,4 @@ export default {
     },
   },
   plugins: [],
-}     
+}       

@@ -508,13 +508,20 @@ export default function Tracker({ user, onLogout }) {
 
     const mentioned = extractMentions(text)
     for (const name of mentioned) {
-      const { data: profile } = await supabase.from('profiles').select('id, name').ilike('name', name).maybeSingle()
+      const { data: matches, error: lookupError } = await supabase
+        .from('profiles')
+        .select('id, name')
+        .ilike('name', `%${name}%`)
+        .limit(1)
+      if (lookupError) { console.error('mention lookup failed:', lookupError.message); continue }
+      const profile = matches && matches[0]
       if (profile && profile.id !== user?.id) {
-        await supabase.from('messages').insert([{
+        const { error: msgError } = await supabase.from('messages').insert([{
           sender_id: user?.id,
           recipient_id: profile.id,
           body: `${user?.name} mentioned you on "${item.title}": ${text}`,
         }])
+        if (msgError) console.error('mention notify failed:', msgError.message)
       }
     }
 
@@ -588,7 +595,7 @@ export default function Tracker({ user, onLogout }) {
   )         
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-[#F5F6F7] via-[#EFF1F2] to-[#E4E7EA] font-sans text-ink relative">        
+    <div className="min-h-screen flex bg-canvas font-sans text-ink relative">        
       <WaferGrid />
 
 {chatUser && (  
@@ -970,4 +977,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}     
+}       
