@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import Safety from './SafetySection'
 import Directory from './Directory' 
@@ -285,6 +285,9 @@ export default function Tracker({ user, onLogout }) {
   const [expanded, setExpanded] = useState({})
   const [mentorEditing, setMentorEditing] = useState({})
   const [mentorDraft, setMentorDraft] = useState({})
+  const [profiles, setProfiles] = useState([])
+  const [mentionState, setMentionState] = useState(null) // { itemId, query, start, end }
+  const mentionInputRefs = useRef({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [nav, setNav] = useState('mine') // 'mine' | 'general' | 'team' | 'safety'
@@ -356,7 +359,12 @@ export default function Tracker({ user, onLogout }) {
     loadAnnouncements()
   }
 
-  useEffect(() => { loadItems(); loadAnnouncements() }, [])
+  async function loadProfiles() {
+    const { data, error } = await supabase.from('profiles').select('id, name')
+    if (!error) setProfiles(data || [])
+  }
+
+  useEffect(() => { loadItems(); loadAnnouncements(); loadProfiles() }, [])
 
   useEffect(() => {
     loadUnreadMessages()
@@ -478,6 +486,43 @@ export default function Tracker({ user, onLogout }) {
   function openMentorEditor(item) {
     setMentorDraft((prev) => ({ ...prev, [item.id]: item.mentor_comment || '' }))
     setMentorEditing((prev) => ({ ...prev, [item.id]: true }))
+    setMentionState(null)
+  }
+
+  // Detects an in-progress "@partial" token right before the cursor as the
+  // person types, so we can show matching profiles live.
+  function handleMentorDraftChange(item, e) {
+    const value = e.target.value
+    const cursor = e.target.selectionStart
+    setMentorDraft((p) => ({ ...p, [item.id]: value }))
+
+    const uptoCursor = value.slice(0, cursor)
+    const match = uptoCursor.match(/@([A-Za-z][A-Za-z.'-]*)$/)
+    if (match) {
+      setMentionState({ itemId: item.id, query: match[1], start: cursor - match[0].length, end: cursor })
+    } else {
+      setMentionState((prev) => (prev && prev.itemId === item.id ? null : prev))
+    }
+  }
+
+  // Replaces the in-progress "@partial" token with the chosen person's full
+  // mention, quoting it if their name has a space, then refocuses the caret
+  // right after the inserted mention.
+  function selectMention(item, profile) {
+    const draft = mentorDraft[item.id] || ''
+    const { start, end } = mentionState
+    const insertion = profile.name.includes(' ') ? `@"${profile.name}"` : `@${profile.name}`
+    const newText = draft.slice(0, start) + insertion + ' ' + draft.slice(end)
+    setMentorDraft((p) => ({ ...p, [item.id]: newText }))
+    setMentionState(null)
+    requestAnimationFrame(() => {
+      const el = mentionInputRefs.current[item.id]
+      if (el) {
+        const pos = start + insertion.length + 1
+        el.focus()
+        el.setSelectionRange(pos, pos)
+      }
+    })
   }
 
   async function saveMentorComment(item) {
@@ -509,6 +554,7 @@ export default function Tracker({ user, onLogout }) {
     }
 
     setMentorEditing((prev) => ({ ...prev, [item.id]: false }))
+    setMentionState(null)
     loadItems()
   }
 
@@ -914,13 +960,37 @@ export default function Tracker({ user, onLogout }) {
                             )}
 
                             {isEditingMentor && (
-                              <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: `${MENTOR_COLOR}0D`, border: `1px solid ${MENTOR_COLOR}40` }}>
+                              <div className="mt-3 rounded-lg p-3 relative" style={{ backgroundColor: `${MENTOR_COLOR}0D`, border: `1px solid ${MENTOR_COLOR}40` }}>
                                 <textarea autoFocus rows={2} placeholder="Leave a comment on this item's progress… use @Name to notify someone"
+                                  ref={(el) => (mentionInputRefs.current[item.id] = el)}
                                   className="w-full bg-surface border border-line rounded-md p-2 text-sm focus:outline-none focus:ring-2"
-                                  value={mentorDraft[item.id] || ''} onChange={(e) => setMentorDraft((p) => ({ ...p, [item.id]: e.target.value }))} />
-                                <p className="font-mono text-[10px] text-ink-muted mt-1">Notify the person</p>     
+                                  value={mentorDraft[item.id] || ''}
+                                  onChange={(e) => handleMentorDraftChange(item, e)}
+                                  onKeyDown={(e) => { if (e.key === 'Escape') setMentionState(null) }}
+                                  onBlur={() => setTimeout(() => setMentionState((prev) => (prev && prev.itemId === item.id ? null : prev)), 150)}
+                                />
+                                {mentionState && mentionState.itemId === item.id && (() => {
+                                  const q = mentionState.query.toLowerCase()
+                                  const matches = profiles.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 5)
+                                  if (matches.length === 0) return null
+                                  return (
+                                    <div className="absolute left-3 right-3 z-10 mt-1 bg-surface border border-line rounded-md shadow-lg overflow-hidden">
+                                      {matches.map((p) => (
+                                        <button
+                                          key={p.id}
+                                          type="button"
+                                          onMouseDown={(e) => { e.preventDefault(); selectMention(item, p) }}
+                                          className="w-full text-left px-3 py-2 text-sm hover:bg-line/60 transition-colors"
+                                        >
+                                          {p.name}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )
+                                })()}
+                                <p className="font-mono text-[10px] text-ink-muted mt-1">Tip: type @ then a name to notify someone</p>
                                 <div className="flex gap-2 mt-2 justify-end">
-                                  <button onClick={() => setMentorEditing((p) => ({ ...p, [item.id]: false }))} className="text-xs px-3 py-1.5 rounded-md text-ink-muted hover:text-ink">Cancel</button>
+                                  <button onClick={() => { setMentorEditing((p) => ({ ...p, [item.id]: false })); setMentionState(null) }} className="text-xs px-3 py-1.5 rounded-md text-ink-muted hover:text-ink">Cancel</button>
                                   <button onClick={() => saveMentorComment(item)} className="text-xs px-3 py-1.5 rounded-md text-white font-medium" style={{ backgroundColor: MENTOR_COLOR }}>Post Comment</button>
                                 </div>
                               </div>
@@ -945,4 +1015,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}      
+}   
