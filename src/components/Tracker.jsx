@@ -34,6 +34,16 @@ const ACTION_META = {
   mentor_comment: { label: 'Mentor commented', color: MENTOR_COLOR },
 }
 
+const SEVERITIES = ['low', 'medium', 'high', 'critical']
+const SEVERITY_LABELS = { low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' }
+const SEVERITY_STYLES = {
+  low: { badge: 'bg-line text-ink-muted', dot: '#5C6670' },
+  medium: { badge: 'bg-accent-blue/10 text-accent-blue', dot: '#2B6CB0' },
+  high: { badge: 'bg-accent-amber/10 text-accent-amber', dot: '#D98C2B' },
+  critical: { badge: 'bg-accent-red/10 text-accent-red', dot: '#C1443C' },
+}
+const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 }
+
 function isOverdue(item) {
   return item.status !== 'closed' && new Date(item.deadline) < new Date(new Date().toDateString())
 }
@@ -260,6 +270,8 @@ export default function Tracker({ user, onLogout }) {
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterOwner, setFilterOwner] = useState('')
+  const [filterSeverity, setFilterSeverity] = useState('all')
+  const [sortBySeverity, setSortBySeverity] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [sendingBackItem, setSendingBackItem] = useState(null)
   const [submittingItem, setSubmittingItem] = useState(null)
@@ -270,7 +282,7 @@ export default function Tracker({ user, onLogout }) {
   const [announcementDraft, setAnnouncementDraft] = useState('')
   const [postingAnnouncement, setPostingAnnouncement] = useState(false)
   const [form, setForm] = useState({
-    title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team',
+    title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team', severity: 'medium',
   })
 
   async function loadItems() {
@@ -337,9 +349,9 @@ export default function Tracker({ user, onLogout }) {
     const { data, error } = await supabase.from('action_items').insert([form]).select()
     if (error) { setError(error.message); return }
     if (data && data[0]) {
-      await supabase.from('item_activity').insert([{ item_id: data[0].id, actor: user?.name || 'Unknown', action: 'created', note: `Logged from ${form.source.replace('_', ' ')}` }])
+      await supabase.from('item_activity').insert([{ item_id: data[0].id, actor: user?.name || 'Unknown', action: 'created', note: `Logged from ${form.source.replace('_', ' ')} · ${form.severity} severity` }])
     }
-    setForm({ title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team' })
+    setForm({ title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team', severity: 'medium' })
     setShowForm(false)
     loadItems()
   }
@@ -479,9 +491,21 @@ export default function Tracker({ user, onLogout }) {
 
   const filtered = scopedItems.filter((i) => {
     if (filterStatus !== 'all' && i.status !== filterStatus) return false
+    if (filterSeverity !== 'all' && i.severity !== filterSeverity) return false
     if (filterOwner && !i.owner_name.toLowerCase().includes(filterOwner.toLowerCase())) return false
     return true
   })
+
+  // Severity (critical first) takes priority over deadline when sorting is
+  // enabled, so the most urgent work always surfaces to the top of the list
+  // regardless of how far out its deadline sits.
+  const sortedFiltered = sortBySeverity
+    ? [...filtered].sort((a, b) => {
+        const sevDiff = (SEVERITY_RANK[a.severity] ?? 2) - (SEVERITY_RANK[b.severity] ?? 2)
+        if (sevDiff !== 0) return sevDiff
+        return new Date(a.deadline) - new Date(b.deadline)
+      })
+    : filtered
 
   const counts = {
     open: scopedItems.filter((i) => i.status === 'open').length,
@@ -490,6 +514,7 @@ export default function Tracker({ user, onLogout }) {
     pending_approval: scopedItems.filter((i) => i.status === 'pending_approval').length,
     closed: scopedItems.filter((i) => i.status === 'closed').length,
     overdue: scopedItems.filter(isOverdue).length,
+    critical: scopedItems.filter((i) => i.status !== 'closed' && i.severity === 'critical').length,
   }
 
   const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory' }[nav]       
@@ -509,8 +534,8 @@ export default function Tracker({ user, onLogout }) {
     <div className="min-h-screen flex bg-gradient-to-br from-[#F5F6F7] via-[#EFF1F2] to-[#E4E7EA] font-sans text-ink relative">        
       <WaferGrid />
 
-{chatUser && (
-  <ChatModal
+{chatUser && (  
+  <ChatModal 
     currentUser={user}
     recipient={chatUser}
     onClose={() => {
@@ -621,13 +646,14 @@ export default function Tracker({ user, onLogout }) {
                   posting={postingAnnouncement}
                 />
               )}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4 mb-8">
                 <StatTile label="Open" value={counts.open} />
                 <StatTile label="In Progress" value={counts.in_progress} />
                 <StatTile label="Ready to Close" value={counts.ready_to_close} />
                 <StatTile label="Pending Approval" value={counts.pending_approval} />
                 <StatTile label="Closed" value={counts.closed} />
                 <StatTile label="Overdue" value={counts.overdue} alert />
+                <StatTile label="Critical" value={counts.critical} alert />
               </div>
 
               {error && <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-lg p-3 mb-4 text-sm font-mono">{error}</div>}
@@ -666,6 +692,13 @@ export default function Tracker({ user, onLogout }) {
                     <input required type="date" className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
                       value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
                   </div>
+                  <div>
+                    <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Severity</label>
+                    <select className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
+                      value={form.severity} onChange={(e) => setForm({ ...form, severity: e.target.value })}>
+                      {SEVERITIES.map((s) => <option key={s} value={s}>{SEVERITY_LABELS[s]}</option>)}
+                    </select>
+                  </div>
                   <div className="col-span-1 sm:col-span-2">
                     <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Visibility</label>
                     <select className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
@@ -681,13 +714,21 @@ export default function Tracker({ user, onLogout }) {
                 </form>
               )}
 
-              <div className="flex gap-3 mb-5 flex-wrap">
+              <div className="flex gap-3 mb-5 flex-wrap items-center">
                 <select className="border border-line rounded-lg p-2.5 text-sm bg-surface shadow-sm" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
                   <option value="all">All statuses</option>
                   {STAGES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
                 </select>
+                <select className="border border-line rounded-lg p-2.5 text-sm bg-surface shadow-sm" value={filterSeverity} onChange={(e) => setFilterSeverity(e.target.value)}>
+                  <option value="all">All severities</option>
+                  {SEVERITIES.map((s) => <option key={s} value={s}>{SEVERITY_LABELS[s]}</option>)}
+                </select>
                 <input placeholder="Filter by owner..." className="border border-line rounded-lg p-2.5 text-sm flex-1 min-w-[200px] bg-surface shadow-sm"
                   value={filterOwner} onChange={(e) => setFilterOwner(e.target.value)} />
+                <label className="flex items-center gap-2 text-sm text-ink-muted font-mono text-[11px] uppercase tracking-wider cursor-pointer select-none">
+                  <input type="checkbox" checked={sortBySeverity} onChange={(e) => setSortBySeverity(e.target.checked)} />
+                  Sort by severity
+                </label>
               </div>
 
               <div className="grid lg:grid-cols-[1fr_300px] gap-6 items-start">
@@ -704,11 +745,12 @@ export default function Tracker({ user, onLogout }) {
                           <p className="text-ink-muted text-sm mt-1">Start by logging the first one from a review, audit, or project discussion.</p>
                         </div>
                       )}
-                      {scopedItems.length > 0 && filtered.length === 0 && (
+                      {scopedItems.length > 0 && sortedFiltered.length === 0 && (
                         <p className="text-ink-muted text-sm py-6 text-center">No items match these filters.</p>
                       )}
-                      {filtered.map((item) => {
+                      {sortedFiltered.map((item) => {
                         const style = STATUS_STYLES[item.status]
+                        const sevStyle = SEVERITY_STYLES[item.severity] || SEVERITY_STYLES.medium
                         const overdue = isOverdue(item)
                         const label = nextActionLabel(item.status)
                         const isOpen = !!expanded[item.id]
@@ -722,6 +764,12 @@ export default function Tracker({ user, onLogout }) {
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-medium text-ink">{item.title}</span>
                                   <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-line text-ink-muted">{item.source.replace('_', ' ')}</span>
+                                  {item.severity && (
+                                    <span className={`font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1 ${sevStyle.badge}`}>
+                                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: sevStyle.dot }} />
+                                      {SEVERITY_LABELS[item.severity] || item.severity}
+                                    </span>
+                                  )}
                                   {item.visibility === 'general' && (
                                     <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-blue/10 text-accent-blue">General</span>
                                   )}
@@ -844,4 +892,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}       
+}    

@@ -3,10 +3,25 @@ import { supabase } from '../supabaseClient'
 
 const MANAGER_COLOR = '#7C5CBF'
 
+const SEVERITIES = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+  { value: 'critical', label: 'Critical' },
+]
+
+const SEVERITY_COLORS = {
+  low: '#5C6670',
+  medium: '#2B6CB0',
+  high: '#D98C2B',
+  critical: '#C1443C',
+}
+
 export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [deadline, setDeadline] = useState('')
+  const [severity, setSeverity] = useState('medium')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -23,6 +38,7 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
       team: mentor.team,
       source: 'project',
       deadline,
+      severity,
       visibility: 'private',
       assigned_by_mentor: mentor.name,
     }]).select()
@@ -31,14 +47,14 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
 
     if (data && data[0]) {
       await supabase.from('item_activity').insert([{
-        item_id: data[0].id, actor: mentor.name, action: 'created', note: `Assigned by manager to ${assignee.name}`,
+        item_id: data[0].id, actor: mentor.name, action: 'created', note: `Assigned by manager to ${assignee.name} · ${severity} severity`,
       }])
     }
 
     await supabase.from('messages').insert([{
       sender_id: mentor.id,
       recipient_id: assignee.id,
-      body: `Your manager ${mentor.name} has assigned this work to you: "${title.trim()}" — due ${deadline}.`,
+      body: `Your manager ${mentor.name} has assigned this work to you: "${title.trim()}" — due ${deadline} · severity: ${severity}.`,
     }])
 
     setSubmitting(false)
@@ -51,7 +67,7 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
         <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: MANAGER_COLOR }} />
         <p className="font-mono text-xs uppercase tracking-wider mb-1" style={{ color: MANAGER_COLOR }}>DF1 DHOLERA </p>
         <h2 className="text-xl font-semibold text-ink mb-1">Assign work to {assignee.name}</h2>
-        <p className="text-sm text-ink-muted mb-5">ONE TEAM ONE DREAM ONE SEMI</p>    
+        <p className="text-sm text-ink-muted mb-5">ONE TEAM ONE DREAM ONE SEMI</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Title</label>
@@ -63,10 +79,25 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
             <textarea className="w-full border border-line rounded-md p-2.5 mt-1"
               value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
-          <div>
-            <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Deadline</label>
-            <input required type="date" className="w-full border border-line rounded-md p-2.5 mt-1"
-              value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Deadline</label>
+              <input required type="date" className="w-full border border-line rounded-md p-2.5 mt-1"
+                value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+            </div>
+            <div>
+              <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Severity</label>
+              <select
+                className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2"
+                value={severity}
+                onChange={(e) => setSeverity(e.target.value)}
+                style={{ color: SEVERITY_COLORS[severity] }}
+              >
+                {SEVERITIES.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
           {error && <p className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-md px-3 py-2">{error}</p>}
           <div className="flex gap-3 pt-1">
@@ -80,5 +111,5 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
         </form>
       </div>
     </div>
-  )  
-}    
+  )
+}     
