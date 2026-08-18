@@ -162,4 +162,4 @@ export default function ChatModal({ currentUser, recipient, onClose, onMessagesR
       </div>
     </div>
   )
-}    
+}       
