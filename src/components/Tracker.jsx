@@ -711,7 +711,7 @@ export default function Tracker({ user, onLogout }) {
 
   const focusedItem = sortedFiltered.find((i) => i.id === focusedItemId) || null
 
-  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory', groups: 'Groups' }[nav]
+  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Peeps of Dholera', groups: 'Groups' }[nav]   
 
   const navItem = (key, label, icon) => (
     <button
