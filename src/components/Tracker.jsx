@@ -1241,7 +1241,7 @@ export default function Tracker({ user, onLogout }) {
                   value={filterOwner} onChange={(e) => setFilterOwner(e.target.value)} />
                 <label className="flex items-center gap-2 text-sm text-ink-muted font-mono text-[11px] uppercase tracking-wider cursor-pointer select-none">
                   <input type="checkbox" checked={sortBySeverity} onChange={(e) => setSortBySeverity(e.target.checked)} />
-                  Sort by severity
+                  Tough first  
                 </label>
               </div>
 
