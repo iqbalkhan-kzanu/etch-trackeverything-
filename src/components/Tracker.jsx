@@ -328,6 +328,81 @@ function AlertTriangleStatIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 2 20h20L12 3Z" /><path d="M12 10v4M12 17h.01" /></svg>)
 }
 
+// Tasks Overview donut, shown in the sidebar. Draws each status as a
+// proportional arc using stroke-dasharray/offset around a shared circle.
+function DonutChart({ segments, total, size = 116, thickness = 14 }) {
+  const radius = (size - thickness) / 2
+  const circumference = 2 * Math.PI * radius
+  let cumulativeFraction = 0
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={thickness} />
+      {segments.map((s) => {
+        if (!s.value || total === 0) return null
+        const frac = s.value / total
+        const dash = frac * circumference
+        const offset = -cumulativeFraction * circumference
+        cumulativeFraction += frac
+        return (
+          <circle
+            key={s.key}
+            cx={size / 2} cy={size / 2} r={radius}
+            fill="none"
+            stroke={s.color}
+            strokeWidth={thickness}
+            strokeDasharray={`${dash} ${circumference - dash}`}
+            strokeDashoffset={offset}
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        )
+      })}
+    </svg>
+  )
+}
+
+function TasksOverviewCard({ counts, total }) {
+  // Mutually exclusive statuses — these make up the ring itself, and always
+  // sum to `total` since every item has exactly one status.
+  const segments = [
+    { key: 'open', label: 'Open', color: STATUS_STYLES.open.top, value: counts.open },
+    { key: 'in_progress', label: 'In Progress', color: STATUS_STYLES.in_progress.top, value: counts.in_progress },
+    { key: 'ready_to_close', label: 'Ready to Close', color: STATUS_STYLES.ready_to_close.top, value: counts.ready_to_close },
+    { key: 'pending_approval', label: 'Pending', color: STATUS_STYLES.pending_approval.top, value: counts.pending_approval },
+    { key: 'closed', label: 'Closed', color: STATUS_STYLES.closed.top, value: counts.closed },
+  ]
+  // Overdue/Critical are flags, not separate statuses — an item can be both
+  // "Open" AND "Overdue", so they're listed for reference only and are NOT
+  // drawn as extra ring wedges (that would double-count and overstate the total).
+  const flags = [
+    { key: 'overdue', label: 'Overdue', color: '#C1443C', value: counts.overdue },
+    { key: 'critical', label: 'Critical', color: '#C1443C', value: counts.critical },
+  ]
+
+  return (
+    <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
+      <p className="text-sm font-semibold text-white mb-4">Tasks Overview</p>
+      <div className="relative w-[116px] h-[116px] mx-auto mb-4">
+        <DonutChart segments={segments} total={total} />
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <span className="text-[9px] uppercase tracking-wider text-white/40">Total Tasks</span>
+          <span className="text-xl font-bold text-white">{total}</span>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {[...segments, ...flags].map((s) => (
+          <div key={s.key} className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-2 text-white/70">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+              {s.label}
+            </span>
+            <span className="font-semibold text-white">{s.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Tracker({ user, onLogout }) {
   const [items, setItems] = useState([])
   const [activity, setActivity] = useState({})
@@ -711,8 +786,8 @@ export default function Tracker({ user, onLogout }) {
 
   const focusedItem = sortedFiltered.find((i) => i.id === focusedItemId) || null
 
-  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Peeps of Dholera', groups: 'Groups' }[nav]   
-  
+  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory', groups: 'Groups' }[nav]
+
   const navItem = (key, label, icon) => (
     <button
       onClick={() => goTo(key)}
@@ -993,7 +1068,7 @@ export default function Tracker({ user, onLogout }) {
 )}
 
       {mobileNavOpen && <div className="fixed inset-0 bg-ink/60 z-40 md:hidden" onClick={() => setMobileNavOpen(false)} />}
-      <aside className={`w-64 shrink-0 bg-ink text-white flex-col justify-between p-6 fixed md:sticky top-0 left-0 h-screen z-50 md:z-auto ${mobileNavOpen ? 'flex' : 'hidden'} md:flex`}>
+      <aside className={`w-64 shrink-0 bg-ink text-white flex-col justify-between p-6 fixed md:sticky top-0 left-0 h-screen z-50 md:z-auto overflow-y-auto ${mobileNavOpen ? 'flex' : 'hidden'} md:flex`}>
         <div>
           <button onClick={() => setMobileNavOpen(false)} className="md:hidden font-mono text-xs uppercase tracking-wider text-white/60 hover:text-white mb-6">✕ Close</button>
           <div className="flex items-center gap-2 mb-10">
@@ -1031,6 +1106,10 @@ export default function Tracker({ user, onLogout }) {
               <GroupsNavIcon className="w-4 h-4" />
             )}
           </nav>
+
+          <div className="mt-6">
+            <TasksOverviewCard counts={counts} total={totalScoped} />
+          </div>
         </div>
         <div className="border-t border-white/10 pt-4">
           <p className="text-sm font-medium">{user?.name}</p>
@@ -1248,4 +1327,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}            
+}   
