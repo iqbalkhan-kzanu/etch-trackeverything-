@@ -47,6 +47,17 @@ const SEVERITY_STYLES = {
 }
 const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 }
 
+// Deterministic per-person avatar color, so the same name always gets the
+// same color across the table (matches the pattern already used for teams
+// and groups elsewhere in the app).
+const AVATAR_PALETTE = ['#2B6CB0', '#7C5CBF', '#2F8F5B', '#D98C2B', '#C1443C', '#1F9E9E', '#C15A9E']
+function personColor(name) {
+  let hash = 0
+  const str = name || ''
+  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0
+  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length]
+}
+
 function extractMentions(text) {
   const names = new Set()
   const quoted = text.matchAll(/@"([^"]+)"/g)
@@ -110,19 +121,16 @@ function WaferGrid({ className = '' }) {
   )
 }      
 
-function StatTile({ label, value, color = '#5C6670', alert = false }) {
-  const isAlert = alert && value > 0
-  const accent = isAlert ? '#C1443C' : color
+function StatCard({ icon, label, value, percent, color }) {
   return (
-    <div className="relative overflow-hidden border border-line rounded-md bg-surface px-5 py-4">
-      <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ backgroundColor: accent }} />
-      <div className="flex items-center justify-between mb-3">
-        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted">{label}</p>
-        {isAlert && <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: accent }} />}
+    <div className="relative overflow-hidden border border-line rounded-xl bg-surface px-5 py-4">
+      <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: color }} />
+      <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3" style={{ backgroundColor: `${color}18`, color }}>
+        {icon}
       </div>
-      <p className="font-mono text-3xl font-semibold tabular-nums" style={{ color: accent }}>
-        {String(value).padStart(2, '0')}
-      </p>
+      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted mb-1">{label}</p>
+      <p className="text-2xl font-bold text-ink tabular-nums">{value}</p>
+      <p className="text-xs font-medium mt-0.5" style={{ color }}>{percent}</p>
     </div>
   )
 }
@@ -164,20 +172,28 @@ function OwnerStatusPanel({ items }) {
   const totalOnTime = ownerStats.reduce((sum, o) => sum + o.onTime, 0)
 
   return (
-    <div className="lg:sticky lg:top-6 border border-line rounded-md bg-surface p-5 h-fit">
-      <div className="flex items-baseline justify-between mb-4 pb-4 border-b border-line">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted mb-1">Team Status</p>
+    <div className="lg:sticky lg:top-6 border border-line rounded-xl bg-surface p-5 h-fit">
+      <div className="flex items-center gap-3 mb-4 pb-4 border-b border-line">
+        <div className="w-10 h-10 rounded-lg bg-accent-blue/10 text-accent-blue flex items-center justify-center shrink-0">
+          <ClipboardIcon className="w-5 h-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted mb-0.5">Team Status</p>
           <h3 className="text-base font-semibold text-ink">On Time vs Late</h3>
         </div>
-        <p className="font-mono text-xs">
+        <p className="font-mono text-xs shrink-0">
           <span className="text-ink">{totalOnTime}</span>
           <span className="text-ink-muted">/{totalOnTime + totalLate}</span>
         </p>
       </div>
 
       {ownerStats.length === 0 ? (
-        <p className="text-sm text-ink-muted">No active items yet.</p>
+        <div className="flex flex-col items-center text-center py-6">
+          <div className="w-20 h-20 rounded-full bg-accent-blue/10 text-accent-blue flex items-center justify-center mb-4">
+            <ClipboardIcon className="w-8 h-8" />
+          </div>
+          <p className="text-sm text-ink-muted">No active items yet.</p>
+        </div>
       ) : (
         <div className="space-y-4">
           {ownerStats.map((o) => {
@@ -295,6 +311,23 @@ function GroupsNavIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>)
 }
 
+// Stat-card icons — small, single-color, matching the nav icon style.
+function ClockStatIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></svg>)
+}
+function CheckCircleStatIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></svg>)
+}
+function PersonStatIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 20c1.5-4 5-6 8-6s6.5 2 8 6" /></svg>)
+}
+function AlarmStatIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2.5" /><path d="m5 3-2 2M19 3l2 2" /></svg>)
+}
+function AlertTriangleStatIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 2 20h20L12 3Z" /><path d="M12 10v4M12 17h.01" /></svg>)
+}
+
 export default function Tracker({ user, onLogout }) {
   const [items, setItems] = useState([])
   const [activity, setActivity] = useState({})
@@ -325,6 +358,7 @@ export default function Tracker({ user, onLogout }) {
   const [announcementDraft, setAnnouncementDraft] = useState('')
   const [postingAnnouncement, setPostingAnnouncement] = useState(false)
   const [groupUnread, setGroupUnread] = useState(0)
+  const [focusedItemId, setFocusedItemId] = useState(null)
   const [form, setForm] = useState({
     title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team', severity: 'medium',
   })
@@ -657,6 +691,25 @@ export default function Tracker({ user, onLogout }) {
     overdue: scopedItems.filter(isOverdue).length,
     critical: scopedItems.filter((i) => i.status !== 'closed' && i.severity === 'critical').length,
   }
+  const totalScoped = scopedItems.length
+  function pct(n) {
+    if (totalScoped === 0) return '—'
+    return `${((n / totalScoped) * 100).toFixed(1)}%`
+  }
+
+  // Keep the focused item in sync with whatever the current filters show —
+  // default to the top of the sorted list, and fall back to it whenever the
+  // previously-focused item drops out of view (filters changed, item closed
+  // out of the list, etc).
+  useEffect(() => {
+    if (sortedFiltered.length === 0) { setFocusedItemId(null); return }
+    if (!sortedFiltered.find((i) => i.id === focusedItemId)) {
+      setFocusedItemId(sortedFiltered[0].id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nav, filterStatus, filterSeverity, filterOwner, sortBySeverity, items])
+
+  const focusedItem = sortedFiltered.find((i) => i.id === focusedItemId) || null
 
   const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory', groups: 'Groups' }[nav]
 
@@ -671,6 +724,231 @@ export default function Tracker({ user, onLogout }) {
       <span className="min-w-0">{label}</span>
     </button>
   )         
+
+  // The full-detail card — used once, for whichever item is "focused".
+  // Pulled out of the old per-item .map() so it can be reused as-is; all
+  // logic and handlers below are unchanged from before.
+  function renderItemCard(item) {
+    const style = STATUS_STYLES[item.status]
+    const sevStyle = SEVERITY_STYLES[item.severity] || SEVERITY_STYLES.medium
+    const overdue = isOverdue(item)
+    const label = nextActionLabel(item.status)
+    const isOpen = !!expanded[item.id]
+    const entries = activity[item.id] || []
+    const isEditingMentor = !!mentorEditing[item.id]
+    const isBlockEditing = !!blockEditing[item.id]
+    const isOwner = item.owner_name === user?.name
+    const isTeamManager = user?.role === 'MANAGER' && user?.team === item.team
+    return (
+      <div key={item.id} className={`bg-surface border rounded-xl p-5 shadow-sm border-l-4 ${overdue ? 'border-l-accent-red border-line' : item.blocked ? 'border-l-accent-amber border-line' : 'border-l-transparent border-line'}`}>
+        <div className="flex justify-between items-center gap-4 flex-wrap">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-ink">{item.title}</span>
+              <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-line text-ink-muted">{item.source.replace('_', ' ')}</span>
+              {item.severity && (
+                <span className={`font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1 ${sevStyle.badge}`}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: sevStyle.dot }} />
+                  {SEVERITY_LABELS[item.severity] || item.severity}
+                </span>
+              )}
+              {item.visibility === 'general' && (
+                <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-blue/10 text-accent-blue">General</span>
+              )}
+              {item.visibility === 'private' && (
+                <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-ink/5 text-ink-muted">Private</span>
+              )}
+              {item.assigned_by_mentor && (
+                <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded" style={{ backgroundColor: '#7C5CBF15', color: '#7C5CBF' }}>
+                  Assigned by {item.assigned_by_mentor}
+                </span>
+              )}
+              {overdue && <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-red/10 text-accent-red">Overdue</span>}
+              {item.blocked && <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-amber/10 text-accent-amber">🚧 Blocked</span>}
+            </div>
+            <p className="text-sm text-ink-muted mt-0.5 font-mono">
+              {item.owner_name} {item.team && `· ${item.team}`} · due {item.deadline}
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="hidden sm:flex flex-col items-end gap-1">
+              <span className={`font-mono text-[11px] uppercase tracking-wider px-2 py-0.5 rounded ${style.badge}`}>{STATUS_LABELS[item.status]}</span>
+              <StageBar status={item.status} />
+            </div>
+
+            {item.status === 'ready_to_close' && (
+              <button onClick={() => setSubmittingItem(item)} className="text-sm bg-ink text-white px-3 py-1.5 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap">
+                Submit for Approval
+              </button>
+            )}
+
+            {item.status === 'pending_approval' && (
+              isTeamManager ? (
+                <div className="flex items-center gap-2">
+                  <button onClick={() => approveItem(item)} className="text-sm bg-accent-green text-white px-3 py-1.5 rounded-md hover:bg-accent-green/90 transition-colors whitespace-nowrap">
+                    Approve & Close
+                  </button>
+                  <button onClick={() => setSendingBackItem(item)} className="text-sm bg-accent-red text-white px-3 py-1.5 rounded-md hover:bg-accent-red/90 transition-colors whitespace-nowrap">
+                    Send Back
+                  </button>
+                </div>
+              ) : (
+                <span className="font-mono text-[11px] text-ink-muted italic whitespace-nowrap">Awaiting manager approval</span>
+              )
+            )}
+
+            {label && (
+              <button onClick={() => advanceStatus(item)} className="text-sm bg-ink text-white px-3 py-1.5 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap">{label}</button>
+            )}
+
+            {isOwner && item.status !== 'closed' && (
+              item.blocked ? (
+                <button
+                  onClick={() => clearBlocked(item)}
+                  className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border border-accent-amber text-accent-amber hover:bg-accent-amber/10 transition-colors"
+                >
+                  Unblock
+                </button>
+              ) : (
+                <button
+                  onClick={() => (isBlockEditing ? setBlockEditing((p) => ({ ...p, [item.id]: false })) : openBlockEditor(item))}
+                  className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border border-line text-ink-muted hover:text-accent-amber hover:border-accent-amber transition-colors"
+                >
+                  🚧 I'm Stuck
+                </button>
+              )
+            )}
+            <button
+              onClick={() => (isEditingMentor ? setMentorEditing((p) => ({ ...p, [item.id]: false })) : openMentorEditor(item))}
+              className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border transition-colors"
+              style={{ borderColor: MENTOR_COLOR, color: MENTOR_COLOR, backgroundColor: isEditingMentor ? `${MENTOR_COLOR}15` : 'transparent' }}
+            >
+              Mentor {item.mentor_comment ? '💬' : ''}
+            </button>
+            <button onClick={() => toggleExpanded(item.id)} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted hover:text-accent-blue border border-line rounded-md px-2.5 py-1.5 whitespace-nowrap">
+              {isOpen ? 'Hide' : 'Timeline'} ({entries.length})
+            </button>
+          </div>
+        </div>
+
+        {item.status === 'ready_to_close' && item.closure_note && (
+          <div className="mt-3 rounded-lg px-3 py-2 text-sm bg-accent-red/10" style={{ borderLeft: '3px solid #C1443C' }}>
+            <p className="font-mono text-[10px] uppercase tracking-wider text-accent-red mb-0.5">Sent back by manager</p>
+            <p className="text-ink">{item.closure_note}</p>
+          </div>
+        )}
+
+        {item.blocked && item.blocked_reason && (
+          <div className="mt-3 rounded-lg px-3 py-2 text-sm bg-accent-amber/10" style={{ borderLeft: '3px solid #D98C2B' }}>
+            <p className="font-mono text-[10px] uppercase tracking-wider text-accent-amber mb-0.5">🚧 Blocked — {item.blocked_by}</p>
+            <p className="text-ink">{item.blocked_reason}</p>
+          </div>
+        )}
+
+        {isBlockEditing && (
+          <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: '#D98C2B0D', border: '1px solid #D98C2B40' }}>
+            <textarea autoFocus rows={2} placeholder="What's blocking you? (waiting on approval, missing data, dependency, etc.)"
+              className="w-full bg-surface border border-line rounded-md p-2 text-sm focus:outline-none focus:ring-2"
+              value={blockDraft[item.id] || ''} onChange={(e) => setBlockDraft((p) => ({ ...p, [item.id]: e.target.value }))} />
+            <div className="flex gap-2 mt-2 justify-end">
+              <button onClick={() => setBlockEditing((p) => ({ ...p, [item.id]: false }))} className="text-xs px-3 py-1.5 rounded-md text-ink-muted hover:text-ink">Cancel</button>
+              <button onClick={() => flagBlocked(item)} className="text-xs px-3 py-1.5 rounded-md text-white font-medium bg-accent-amber hover:opacity-90">Flag as Blocked</button>
+            </div>
+          </div>
+        )}
+
+        {(() => {
+          const snap = item.status === 'closed' ? item.close_snapshot : null
+          const note = snap ? snap.completion_note : item.completion_note
+          const images = snap ? snap.completion_images : item.completion_images
+          const files = snap ? snap.completion_files : item.completion_files
+          if (!note && !(images && images.length > 0) && !(files && files.length > 0)) return null
+          return (
+            <div className="mt-3 rounded-lg px-3 py-2.5 text-sm bg-line/40" style={{ borderLeft: '3px solid #14181C' }}>
+              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                <p className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">Work Summary</p>
+                {snap && (
+                  <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent-green/10 text-accent-green">
+                    🔒 Locked at close · {snap.closed_by} · {formatTime(snap.closed_at)}
+                  </span>
+                )}
+              </div>
+              {note && <p className="text-ink mb-2">{note}</p>}
+              {images && images.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {images.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="w-16 h-16 rounded-md overflow-hidden border border-line block">
+                      <img src={url} alt="" className="w-full h-full object-cover" />
+                    </a>
+                  ))}
+                </div>
+              )}
+              {files && files.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {files.map((f, i) => (
+                    <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs border border-line rounded-md px-2 py-1.5 text-ink-muted hover:text-accent-blue hover:border-accent-blue transition-colors">
+                      📎 <span className="truncate max-w-[140px]">{f.name}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
+        {item.mentor_comment && !isEditingMentor && (
+          <div className="mt-3 rounded-lg px-3 py-2 text-sm" style={{ backgroundColor: `${MENTOR_COLOR}12`, borderLeft: `3px solid ${MENTOR_COLOR}` }}>
+            <p className="font-mono text-[10px] uppercase tracking-wider mb-0.5" style={{ color: MENTOR_COLOR }}>Mentor Comment — {item.mentor_by}</p>
+            <p className="text-ink">{renderWithMentions(item.mentor_comment)}</p>
+          </div>
+        )}
+
+        {isEditingMentor && (
+          <div className="mt-3 rounded-lg p-3 relative" style={{ backgroundColor: `${MENTOR_COLOR}0D`, border: `1px solid ${MENTOR_COLOR}40` }}>
+            <textarea autoFocus rows={2} placeholder="Leave a comment on this item's progress… use @Name to notify someone"
+              ref={(el) => (mentionInputRefs.current[item.id] = el)}
+              className="w-full bg-surface border border-line rounded-md p-2 text-sm focus:outline-none focus:ring-2"
+              value={mentorDraft[item.id] || ''}
+              onChange={(e) => handleMentorDraftChange(item, e)}
+              onKeyDown={(e) => { if (e.key === 'Escape') setMentionState(null) }}
+              onBlur={() => setTimeout(() => setMentionState((prev) => (prev && prev.itemId === item.id ? null : prev)), 150)}
+            />
+            {mentionState && mentionState.itemId === item.id && (() => {
+              const q = mentionState.query.toLowerCase()
+              const matches = profiles.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 5)
+              if (matches.length === 0) return null
+              return (
+                <div className="absolute left-3 right-3 z-10 mt-1 bg-surface border border-line rounded-md shadow-lg overflow-hidden">
+                  {matches.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); selectMention(item, p) }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-line/60 transition-colors"
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+              )
+            })()}
+            <p className="font-mono text-[10px] text-ink-muted mt-1">Tip: type @ then a name to notify someone</p>
+            <div className="flex gap-2 mt-2 justify-end">
+              <button onClick={() => { setMentorEditing((p) => ({ ...p, [item.id]: false })); setMentionState(null) }} className="text-xs px-3 py-1.5 rounded-md text-ink-muted hover:text-ink">Cancel</button>
+              <button onClick={() => saveMentorComment(item)} className="text-xs px-3 py-1.5 rounded-md text-white font-medium" style={{ backgroundColor: MENTOR_COLOR }}>Post Comment</button>
+            </div>
+          </div>
+        )}
+
+        {isOpen && (
+          <div className="border-t border-line mt-3">
+            <Timeline entries={entries} />
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-[#F5F6F7] via-[#EFF1F2] to-[#E4E7EA] font-sans text-ink relative">        
@@ -804,13 +1082,13 @@ export default function Tracker({ user, onLogout }) {
                 />
               )}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4 mb-8">
-                <StatTile label="Open" value={counts.open} color="#5C6670" />
-                <StatTile label="In Progress" value={counts.in_progress} color="#2B6CB0" />
-                <StatTile label="Ready to Close" value={counts.ready_to_close} color="#D98C2B" />
-                <StatTile label="Pending Approval" value={counts.pending_approval} color="#7C5CBF" />
-                <StatTile label="Closed" value={counts.closed} color="#2F8F5B" />
-                <StatTile label="Overdue" value={counts.overdue} alert />
-                <StatTile label="Critical" value={counts.critical} alert />
+                <StatCard icon={<ClipboardIcon className="w-4.5 h-4.5" />} label="Open" value={counts.open} percent={pct(counts.open)} color="#5C6670" />
+                <StatCard icon={<ClockStatIcon className="w-4.5 h-4.5" />} label="In Progress" value={counts.in_progress} percent={pct(counts.in_progress)} color="#2B6CB0" />
+                <StatCard icon={<CheckCircleStatIcon className="w-4.5 h-4.5" />} label="Ready to Close" value={counts.ready_to_close} percent={pct(counts.ready_to_close)} color="#D98C2B" />
+                <StatCard icon={<PersonStatIcon className="w-4.5 h-4.5" />} label="Pending Approval" value={counts.pending_approval} percent={pct(counts.pending_approval)} color="#7C5CBF" />
+                <StatCard icon={<CheckCircleStatIcon className="w-4.5 h-4.5" />} label="Closed" value={counts.closed} percent={pct(counts.closed)} color="#2F8F5B" />
+                <StatCard icon={<AlarmStatIcon className="w-4.5 h-4.5" />} label="Overdue" value={counts.overdue} percent={pct(counts.overdue)} color="#C1443C" />
+                <StatCard icon={<AlertTriangleStatIcon className="w-4.5 h-4.5" />} label="Critical" value={counts.critical} percent={pct(counts.critical)} color="#C1443C" />
               </div>
 
               {error && <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-lg p-3 mb-4 text-sm font-mono">{error}</div>}
@@ -889,244 +1167,77 @@ export default function Tracker({ user, onLogout }) {
               </div>
 
               <div className="grid lg:grid-cols-[1fr_300px] gap-6 items-start">
-                <div>
+                <div className="space-y-6">
                   {loading ? (
                     <p className="text-ink-muted font-mono text-sm">Loading action items…</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {scopedItems.length === 0 && (
-                        <div className="border border-dashed border-line rounded-xl p-10 text-center bg-surface">
-                          <p className="text-ink font-medium">
-                            {nav === 'general' ? 'No general items yet.' : nav === 'team' ? 'No team items yet.' : 'No action items logged yet.'}
-                          </p>
-                          <p className="text-ink-muted text-sm mt-1">Start by logging the first one from a review, audit, or project discussion.</p>
-                        </div>
-                      )}
-                      {scopedItems.length > 0 && sortedFiltered.length === 0 && (
-                        <p className="text-ink-muted text-sm py-6 text-center">No items match these filters.</p>
-                      )}
-                      {sortedFiltered.map((item) => {
-                        const style = STATUS_STYLES[item.status]
-                        const sevStyle = SEVERITY_STYLES[item.severity] || SEVERITY_STYLES.medium
-                        const overdue = isOverdue(item)
-                        const label = nextActionLabel(item.status)
-                        const isOpen = !!expanded[item.id]
-                        const entries = activity[item.id] || []
-                        const isEditingMentor = !!mentorEditing[item.id]
-                        const isBlockEditing = !!blockEditing[item.id]
-                        const isOwner = item.owner_name === user?.name
-                        const isTeamManager = user?.role === 'MANAGER' && user?.team === item.team
-                        return (
-                          <div key={item.id} className={`bg-surface border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow border-l-4 ${overdue ? 'border-l-accent-red border-line' : item.blocked ? 'border-l-accent-amber border-line' : 'border-l-transparent border-line'}`}>
-                            <div className="flex justify-between items-center gap-4 flex-wrap">
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-medium text-ink">{item.title}</span>
-                                  <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-line text-ink-muted">{item.source.replace('_', ' ')}</span>
-                                  {item.severity && (
-                                    <span className={`font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1 ${sevStyle.badge}`}>
-                                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: sevStyle.dot }} />
-                                      {SEVERITY_LABELS[item.severity] || item.severity}
-                                    </span>
-                                  )}
-                                  {item.visibility === 'general' && (
-                                    <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-blue/10 text-accent-blue">General</span>
-                                  )}
-                                  {item.visibility === 'private' && (
-                                    <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-ink/5 text-ink-muted">Private</span>
-                                  )}
-                                  {item.assigned_by_mentor && (
-                                    <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded" style={{ backgroundColor: '#7C5CBF15', color: '#7C5CBF' }}>
-                                      Assigned by {item.assigned_by_mentor}
-                                    </span>
-                                  )}
-                                  {overdue && <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-red/10 text-accent-red">Overdue</span>}
-                                  {item.blocked && <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-amber/10 text-accent-amber">🚧 Blocked</span>}
-                                </div>
-                                <p className="text-sm text-ink-muted mt-0.5 font-mono">
-                                  {item.owner_name} {item.team && `· ${item.team}`} · due {item.deadline}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-3 shrink-0">
-                                <div className="hidden sm:flex flex-col items-end gap-1">
-                                  <span className={`font-mono text-[11px] uppercase tracking-wider px-2 py-0.5 rounded ${style.badge}`}>{STATUS_LABELS[item.status]}</span>
-                                  <StageBar status={item.status} />
-                                </div>
-
-                                {item.status === 'ready_to_close' && (
-                                  <button onClick={() => setSubmittingItem(item)} className="text-sm bg-ink text-white px-3 py-1.5 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap">
-                                    Submit for Approval
-                                  </button>
-                                )}
-
-                                {item.status === 'pending_approval' && (
-                                  isTeamManager ? (
-                                    <div className="flex items-center gap-2">
-                                      <button onClick={() => approveItem(item)} className="text-sm bg-accent-green text-white px-3 py-1.5 rounded-md hover:bg-accent-green/90 transition-colors whitespace-nowrap">
-                                        Approve & Close
-                                      </button>
-                                      <button onClick={() => setSendingBackItem(item)} className="text-sm bg-accent-red text-white px-3 py-1.5 rounded-md hover:bg-accent-red/90 transition-colors whitespace-nowrap">
-                                        Send Back
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <span className="font-mono text-[11px] text-ink-muted italic whitespace-nowrap">Awaiting manager approval</span>
-                                  )
-                                )}
-
-                                {label && (
-                                  <button onClick={() => advanceStatus(item)} className="text-sm bg-ink text-white px-3 py-1.5 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap">{label}</button>
-                                )}
-
-                                {isOwner && item.status !== 'closed' && (
-                                  item.blocked ? (
-                                    <button
-                                      onClick={() => clearBlocked(item)}
-                                      className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border border-accent-amber text-accent-amber hover:bg-accent-amber/10 transition-colors"
-                                    >
-                                      Unblock
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={() => (isBlockEditing ? setBlockEditing((p) => ({ ...p, [item.id]: false })) : openBlockEditor(item))}
-                                      className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border border-line text-ink-muted hover:text-accent-amber hover:border-accent-amber transition-colors"
-                                    >
-                                      🚧 I'm Stuck
-                                    </button>
-                                  )
-                                )}
-                                <button
-                                  onClick={() => (isEditingMentor ? setMentorEditing((p) => ({ ...p, [item.id]: false })) : openMentorEditor(item))}
-                                  className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border transition-colors"
-                                  style={{ borderColor: MENTOR_COLOR, color: MENTOR_COLOR, backgroundColor: isEditingMentor ? `${MENTOR_COLOR}15` : 'transparent' }}
-                                >
-                                  Mentor {item.mentor_comment ? '💬' : ''}
-                                </button>
-                                <button onClick={() => toggleExpanded(item.id)} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted hover:text-accent-blue border border-line rounded-md px-2.5 py-1.5 whitespace-nowrap">
-                                  {isOpen ? 'Hide' : 'Timeline'} ({entries.length})
-                                </button>
-                              </div>
-                            </div>
-
-                            {item.status === 'ready_to_close' && item.closure_note && (
-                              <div className="mt-3 rounded-lg px-3 py-2 text-sm bg-accent-red/10" style={{ borderLeft: '3px solid #C1443C' }}>
-                                <p className="font-mono text-[10px] uppercase tracking-wider text-accent-red mb-0.5">Sent back by manager</p>
-                                <p className="text-ink">{item.closure_note}</p>
-                              </div>
-                            )}
-
-                            {item.blocked && item.blocked_reason && (
-                              <div className="mt-3 rounded-lg px-3 py-2 text-sm bg-accent-amber/10" style={{ borderLeft: '3px solid #D98C2B' }}>
-                                <p className="font-mono text-[10px] uppercase tracking-wider text-accent-amber mb-0.5">🚧 Blocked — {item.blocked_by}</p>
-                                <p className="text-ink">{item.blocked_reason}</p>
-                              </div>
-                            )}
-
-                            {isBlockEditing && (
-                              <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: '#D98C2B0D', border: '1px solid #D98C2B40' }}>
-                                <textarea autoFocus rows={2} placeholder="What's blocking you? (waiting on approval, missing data, dependency, etc.)"
-                                  className="w-full bg-surface border border-line rounded-md p-2 text-sm focus:outline-none focus:ring-2"
-                                  value={blockDraft[item.id] || ''} onChange={(e) => setBlockDraft((p) => ({ ...p, [item.id]: e.target.value }))} />
-                                <div className="flex gap-2 mt-2 justify-end">
-                                  <button onClick={() => setBlockEditing((p) => ({ ...p, [item.id]: false }))} className="text-xs px-3 py-1.5 rounded-md text-ink-muted hover:text-ink">Cancel</button>
-                                  <button onClick={() => flagBlocked(item)} className="text-xs px-3 py-1.5 rounded-md text-white font-medium bg-accent-amber hover:opacity-90">Flag as Blocked</button>
-                                </div>
-                              </div>
-                            )}
-
-                            {(() => {
-                              const snap = item.status === 'closed' ? item.close_snapshot : null
-                              const note = snap ? snap.completion_note : item.completion_note
-                              const images = snap ? snap.completion_images : item.completion_images
-                              const files = snap ? snap.completion_files : item.completion_files
-                              if (!note && !(images && images.length > 0) && !(files && files.length > 0)) return null
-                              return (
-                                <div className="mt-3 rounded-lg px-3 py-2.5 text-sm bg-line/40" style={{ borderLeft: '3px solid #14181C' }}>
-                                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                                    <p className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">Work Summary</p>
-                                    {snap && (
-                                      <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent-green/10 text-accent-green">
-                                        🔒 Locked at close · {snap.closed_by} · {formatTime(snap.closed_at)}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {note && <p className="text-ink mb-2">{note}</p>}
-                                  {images && images.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mb-2">
-                                      {images.map((url, i) => (
-                                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="w-16 h-16 rounded-md overflow-hidden border border-line block">
-                                          <img src={url} alt="" className="w-full h-full object-cover" />
-                                        </a>
-                                      ))}
-                                    </div>
-                                  )}
-                                  {files && files.length > 0 && (
-                                    <div className="flex flex-wrap gap-2">
-                                      {files.map((f, i) => (
-                                        <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
-                                          className="flex items-center gap-1.5 text-xs border border-line rounded-md px-2 py-1.5 text-ink-muted hover:text-accent-blue hover:border-accent-blue transition-colors">
-                                          📎 <span className="truncate max-w-[140px]">{f.name}</span>
-                                        </a>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })()}
-
-                            {item.mentor_comment && !isEditingMentor && (
-                              <div className="mt-3 rounded-lg px-3 py-2 text-sm" style={{ backgroundColor: `${MENTOR_COLOR}12`, borderLeft: `3px solid ${MENTOR_COLOR}` }}>
-                                <p className="font-mono text-[10px] uppercase tracking-wider mb-0.5" style={{ color: MENTOR_COLOR }}>Mentor Comment — {item.mentor_by}</p>
-                                <p className="text-ink">{renderWithMentions(item.mentor_comment)}</p>
-                              </div>
-                            )}
-
-                            {isEditingMentor && (
-                              <div className="mt-3 rounded-lg p-3 relative" style={{ backgroundColor: `${MENTOR_COLOR}0D`, border: `1px solid ${MENTOR_COLOR}40` }}>
-                                <textarea autoFocus rows={2} placeholder="Leave a comment on this item's progress… use @Name to notify someone"
-                                  ref={(el) => (mentionInputRefs.current[item.id] = el)}
-                                  className="w-full bg-surface border border-line rounded-md p-2 text-sm focus:outline-none focus:ring-2"
-                                  value={mentorDraft[item.id] || ''}
-                                  onChange={(e) => handleMentorDraftChange(item, e)}
-                                  onKeyDown={(e) => { if (e.key === 'Escape') setMentionState(null) }}
-                                  onBlur={() => setTimeout(() => setMentionState((prev) => (prev && prev.itemId === item.id ? null : prev)), 150)}
-                                />
-                                {mentionState && mentionState.itemId === item.id && (() => {
-                                  const q = mentionState.query.toLowerCase()
-                                  const matches = profiles.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 5)
-                                  if (matches.length === 0) return null
-                                  return (
-                                    <div className="absolute left-3 right-3 z-10 mt-1 bg-surface border border-line rounded-md shadow-lg overflow-hidden">
-                                      {matches.map((p) => (
-                                        <button
-                                          key={p.id}
-                                          type="button"
-                                          onMouseDown={(e) => { e.preventDefault(); selectMention(item, p) }}
-                                          className="w-full text-left px-3 py-2 text-sm hover:bg-line/60 transition-colors"
-                                        >
-                                          {p.name}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )
-                                })()}
-                                <p className="font-mono text-[10px] text-ink-muted mt-1">Tip: type @ then a name to notify someone</p>
-                                <div className="flex gap-2 mt-2 justify-end">
-                                  <button onClick={() => { setMentorEditing((p) => ({ ...p, [item.id]: false })); setMentionState(null) }} className="text-xs px-3 py-1.5 rounded-md text-ink-muted hover:text-ink">Cancel</button>
-                                  <button onClick={() => saveMentorComment(item)} className="text-xs px-3 py-1.5 rounded-md text-white font-medium" style={{ backgroundColor: MENTOR_COLOR }}>Post Comment</button>
-                                </div>
-                              </div>
-                            )}
-
-                            {isOpen && (
-                              <div className="border-t border-line mt-3">
-                                <Timeline entries={entries} />
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
+                  ) : scopedItems.length === 0 ? (
+                    <div className="border border-dashed border-line rounded-xl p-10 text-center bg-surface">
+                      <p className="text-ink font-medium">
+                        {nav === 'general' ? 'No general items yet.' : nav === 'team' ? 'No team items yet.' : 'No action items logged yet.'}
+                      </p>
+                      <p className="text-ink-muted text-sm mt-1">Start by logging the first one from a review, audit, or project discussion.</p>
                     </div>
+                  ) : sortedFiltered.length === 0 ? (
+                    <p className="text-ink-muted text-sm py-6 text-center">No items match these filters.</p>
+                  ) : (
+                    <>
+                      {focusedItem && renderItemCard(focusedItem)}
+
+                      <div className="border border-line rounded-xl bg-surface shadow-sm overflow-hidden">
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+                          <h3 className="text-base font-semibold text-ink">Recent Tasks</h3>
+                          <span className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">{sortedFiltered.length} item{sortedFiltered.length === 1 ? '' : 's'}</span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-line">
+                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-ink-muted px-5 py-2.5">Task</th>
+                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-ink-muted px-3 py-2.5">Status</th>
+                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-ink-muted px-3 py-2.5">Severity</th>
+                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-ink-muted px-3 py-2.5">Due Date</th>
+                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-ink-muted px-3 py-2.5">Assignee</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-line">
+                              {sortedFiltered.map((item) => {
+                                const style = STATUS_STYLES[item.status]
+                                const sevStyle = SEVERITY_STYLES[item.severity] || SEVERITY_STYLES.medium
+                                const isFocused = item.id === focusedItemId
+                                return (
+                                  <tr
+                                    key={item.id}
+                                    onClick={() => setFocusedItemId(item.id)}
+                                    className={`cursor-pointer transition-colors ${isFocused ? 'bg-accent-blue/5' : 'hover:bg-line/30'}`}
+                                  >
+                                    <td className="px-5 py-3 min-w-[220px] max-w-xs">
+                                      <p className="font-medium text-ink truncate">{item.title}</p>
+                                      <p className="font-mono text-[10px] text-ink-muted truncate">{item.owner_name}{item.team && ` · ${item.team}`}</p>
+                                    </td>
+                                    <td className="px-3 py-3">
+                                      <span className={`font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded whitespace-nowrap ${style.badge}`}>{STATUS_LABELS[item.status]}</span>
+                                    </td>
+                                    <td className="px-3 py-3">
+                                      <span className={`font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded whitespace-nowrap ${sevStyle.badge}`}>{SEVERITY_LABELS[item.severity] || item.severity}</span>
+                                    </td>
+                                    <td className="px-3 py-3 font-mono text-xs text-ink-muted whitespace-nowrap">{item.deadline}</td>
+                                    <td className="px-3 py-3">
+                                      <div
+                                        className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                                        style={{ backgroundColor: personColor(item.owner_name) }}
+                                        title={item.owner_name}
+                                      >
+                                        {getInitials(item.owner_name)}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
                 <OwnerStatusPanel items={scopedItems} />
@@ -1137,4 +1248,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}      
+}            
