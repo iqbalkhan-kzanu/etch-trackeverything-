@@ -3,7 +3,6 @@ import { supabase } from '../supabaseClient'
 import Safety from './SafetySection'
 import Directory from './Directory' 
 import ChatModal from './ChatModal'   
-import NewGroupModal from './NewGroupModal'
 import AssignWorkModal from './AssignWorkModal'
 import SendBackModal from './SendBackModal'
 import SubmitForApprovalModal from './SubmitForApprovalModal'
@@ -47,8 +46,6 @@ const SEVERITY_STYLES = {
 }
 const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 }
 
-// Matches @FirstName or @"Full Name With Spaces" so mentors can tag people
-// by typing @ followed by their name in a comment.
 function extractMentions(text) {
   const names = new Set()
   const quoted = text.matchAll(/@"([^"]+)"/g)
@@ -278,57 +275,6 @@ function AnnouncementsPanel({ announcements, loading, user, draft, onDraftChange
   )
 }
 
-function GroupsPanel({ channels, groupUnread, onOpen, onNewGroup }) {
-  return (
-    <div className="max-w-2xl">
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">Group Chats</p>
-          <h2 className="text-xl font-semibold text-ink">Your groups</h2>
-        </div>
-        <button onClick={onNewGroup} className="bg-accent-blue text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-blue/90 transition-colors whitespace-nowrap">
-          + New Group
-        </button>
-      </div>
-
-      {channels.length === 0 ? (
-        <div className="border border-dashed border-line rounded-xl p-10 text-center bg-surface">
-          <p className="text-ink font-medium">No group chats yet.</p>
-          <p className="text-ink-muted text-sm mt-1">Start one to coordinate with a few people at once.</p>
-        </div>
-      ) : (
-        <div className="border border-line rounded-xl bg-surface divide-y divide-line overflow-hidden shadow-sm">
-          {channels.map((c) => {
-            const unread = groupUnread[c.id] || 0
-            return (
-              <button
-                key={c.id}
-                onClick={() => onOpen(c)}
-                className="w-full flex items-center justify-between gap-3 px-5 py-3.5 text-left hover:bg-line/30 transition-colors"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-lg bg-accent-blue/10 text-accent-blue flex items-center justify-center text-sm font-semibold shrink-0">
-                    #
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-medium text-ink truncate">{c.name}</p>
-                    {c.team && <p className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">{c.team}</p>}
-                  </div>
-                </div>
-                {unread > 0 && (
-                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-                    {unread > 99 ? '99+' : unread}
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function Tracker({ user, onLogout }) {
   const [items, setItems] = useState([])
   const [activity, setActivity] = useState({})
@@ -338,16 +284,13 @@ export default function Tracker({ user, onLogout }) {
   const [blockEditing, setBlockEditing] = useState({})
   const [blockDraft, setBlockDraft] = useState({})
   const [profiles, setProfiles] = useState([])
-  const [mentionState, setMentionState] = useState(null) // { itemId, query, start, end }
+  const [mentionState, setMentionState] = useState(null)
   const mentionInputRefs = useRef({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [nav, setNav] = useState('mine') // 'mine' | 'general' | 'team' | 'safety' | 'directory' | 'groups'
-  const [chatTarget, setChatTarget] = useState(null) // { recipient } for DM, or { channel } for group
-  const [showNewGroup, setShowNewGroup] = useState(false)
-  const [channels, setChannels] = useState([])
-  const [groupUnread, setGroupUnread] = useState({}) // { channelId: count }
-  const [unreadMessages, setUnreadMessages] = useState(0) // DM unread only
+  const [nav, setNav] = useState('mine') // 'mine' | 'general' | 'team' | 'safety' | 'directory'
+  const [chatUser, setChatUser] = useState(null)
+  const [unreadMessages, setUnreadMessages] = useState(0)
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterOwner, setFilterOwner] = useState('')
   const [filterSeverity, setFilterSeverity] = useState('all')
@@ -393,30 +336,6 @@ export default function Tracker({ user, onLogout }) {
     if (!error) setUnreadMessages(count || 0)
   }
 
-  async function loadChannels() {
-    if (!user?.id) return
-    const { data: memberRows, error: memErr } = await supabase
-      .from('channel_members')
-      .select('channel_id, last_read_at, channels(id, name, team, created_by, created_at)')
-      .eq('user_id', user.id)
-    if (memErr || !memberRows) return
-
-    const chs = memberRows.map((r) => r.channels).filter(Boolean).sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-    setChannels(chs)
-
-    const unreadEntries = await Promise.all(memberRows.map(async (r) => {
-      if (!r.channels) return [r.channel_id, 0]
-      const { count } = await supabase
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('channel_id', r.channel_id)
-        .neq('sender_id', user.id)
-        .gt('created_at', r.last_read_at || '1970-01-01')
-      return [r.channel_id, count || 0]
-    }))
-    setGroupUnread(Object.fromEntries(unreadEntries))
-  }
-
   async function loadAnnouncements() {
     setLoadingAnnouncements(true)
     const { data, error } = await supabase.from('announcements').select('*').order('created_at', { ascending: false })
@@ -443,27 +362,15 @@ export default function Tracker({ user, onLogout }) {
     if (!error) setProfiles(data || [])
   }
 
-  useEffect(() => { loadItems(); loadAnnouncements(); loadProfiles(); loadChannels() }, [])
+  useEffect(() => { loadItems(); loadAnnouncements(); loadProfiles() }, [])
 
   useEffect(() => {
     loadUnreadMessages()
-    loadChannels()
-    const interval = setInterval(() => { loadUnreadMessages(); loadChannels() }, 5000)
+    const interval = setInterval(loadUnreadMessages, 5000)
     return () => clearInterval(interval)
   }, [user?.id])
 
   function goTo(key) { setNav(key); setMobileNavOpen(false) }
-
-  function openDm(person) { setChatTarget({ recipient: person }) }
-  function openGroup(channel) { setChatTarget({ channel }) }
-  function closeChat() {
-    setChatTarget(null)
-    loadUnreadMessages()
-    loadChannels()
-  }
-  function handleLeftGroup() {
-    loadChannels()
-  }
 
   async function handleCreate(e) {
     e.preventDefault()
@@ -730,9 +637,7 @@ export default function Tracker({ user, onLogout }) {
     critical: scopedItems.filter((i) => i.status !== 'closed' && i.severity === 'critical').length,
   }
 
-  const totalGroupUnread = Object.values(groupUnread).reduce((a, b) => a + b, 0)
-
-  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory', groups: 'Group Chats' }[nav]       
+  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory' }[nav]       
 
   const navItem = (key, label) => (
     <button
@@ -749,28 +654,15 @@ export default function Tracker({ user, onLogout }) {
     <div className="min-h-screen flex bg-gradient-to-br from-[#F5F6F7] via-[#EFF1F2] to-[#E4E7EA] font-sans text-ink relative">        
       <WaferGrid />
 
-{chatTarget && (
-  <ChatModal
+{chatUser && (  
+  <ChatModal 
     currentUser={user}
-    recipient={chatTarget.recipient}
-    channel={chatTarget.channel}
-    profiles={profiles}
-    onClose={closeChat}
-    onMessagesRead={() => { loadUnreadMessages(); loadChannels() }}
-    onLeftGroup={handleLeftGroup}
-  />
-)}
-
-{showNewGroup && (
-  <NewGroupModal
-    user={user}
-    profiles={profiles}
-    onCancel={() => setShowNewGroup(false)}
-    onCreated={(ch) => {
-      setShowNewGroup(false)
-      loadChannels()
-      setChatTarget({ channel: ch })
+    recipient={chatUser}
+    onClose={() => {
+      setChatUser(null)
+      loadUnreadMessages()
     }}
+    onMessagesRead={loadUnreadMessages}
   />
 )}
 
@@ -824,18 +716,7 @@ export default function Tracker({ user, onLogout }) {
                   </span>
                 )}
               </span>
-            )}
-            {navItem(
-              'groups',
-              <span className="flex items-center gap-2">
-                Group Chats
-                {totalGroupUnread > 0 && (
-                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                    {totalGroupUnread > 99 ? '99+' : totalGroupUnread}
-                  </span>
-                )}
-              </span>
-            )}
+            )}  
           </nav>
         </div>
         <div className="border-t border-white/10 pt-4">
@@ -856,7 +737,7 @@ export default function Tracker({ user, onLogout }) {
             <span className="text-sm font-medium text-ink">{user?.name}</span>
             <button onClick={onLogout} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted border border-line rounded-md px-3 py-2">Log Out</button>
           </div>
-          {nav !== 'safety' && nav !== 'directory' && nav !== 'groups' && (
+          {nav !== 'safety' && nav !== 'directory' && (     
             <button onClick={() => setShowForm((s) => !s)} className="bg-accent-blue text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-blue/90 transition-colors">
               {showForm ? 'Cancel' : '+ New Action Item'}
             </button>
@@ -869,16 +750,9 @@ export default function Tracker({ user, onLogout }) {
           ) : nav === 'directory' ? (
             <Directory
               user={user}
-              onMessage={(person) => openDm(person)}
+              onMessage={(person) => setChatUser(person)}
               onAssign={(person) => setAssigningTo(person)}
             />    
-          ) : nav === 'groups' ? (
-            <GroupsPanel
-              channels={channels}
-              groupUnread={groupUnread}
-              onOpen={openGroup}
-              onNewGroup={() => setShowNewGroup(true)}
-            />
           ) : (      
             <>
               {nav === 'general' && (
@@ -1225,5 +1099,5 @@ export default function Tracker({ user, onLogout }) {
         </div>
       </div>
     </div>
-  )  
-}  
+  )
+}    
