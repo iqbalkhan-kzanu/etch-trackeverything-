@@ -304,7 +304,7 @@ export default function Tracker({ user, onLogout }) {
   const [announcements, setAnnouncements] = useState([])
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true)
   const [announcementDraft, setAnnouncementDraft] = useState('')
-  const [postingAnnouncement, setPostingAnnouncement] = useState(false)
+  const [postingAnnouncement, setPostingAnnouncement] = useState(false)     
   const [groupUnread, setGroupUnread] = useState(0)   
   const [form, setForm] = useState({
     title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team', severity: 'medium',
