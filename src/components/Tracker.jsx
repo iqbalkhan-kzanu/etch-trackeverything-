@@ -276,6 +276,25 @@ function AnnouncementsPanel({ announcements, loading, user, draft, onDraftChange
   )
 }
 
+function ClipboardIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="4" width="10" height="4" rx="1" /><path d="M7 6H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-2" /><path d="M9 12h6M9 16h4" /></svg>)
+}
+function MegaphoneIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m3 11 18-5v12L3 13v-2Z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" /></svg>)
+}
+function TeamIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3" /><path d="M2 21c1-3.5 4-5.5 7-5.5s6 2 7 5.5" /><circle cx="17" cy="8" r="2.5" /><path d="M16 15.2c2.4.4 4.2 2.1 5 5.8" /></svg>)
+}
+function ShieldNavIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z" /><path d="m9 12 2 2 4-4" /></svg>)
+}
+function BookIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" /><circle cx="10" cy="10" r="2" /><path d="M6 17c.6-1.8 2-2.7 4-2.7s3.4.9 4 2.7M14 8h4M14 12h4" /></svg>)
+}
+function GroupsNavIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>)
+}
+
 export default function Tracker({ user, onLogout }) {
   const [items, setItems] = useState([])
   const [activity, setActivity] = useState({})
@@ -304,8 +323,8 @@ export default function Tracker({ user, onLogout }) {
   const [announcements, setAnnouncements] = useState([])
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true)
   const [announcementDraft, setAnnouncementDraft] = useState('')
-  const [postingAnnouncement, setPostingAnnouncement] = useState(false)     
-  const [groupUnread, setGroupUnread] = useState(0)   
+  const [postingAnnouncement, setPostingAnnouncement] = useState(false)
+  const [groupUnread, setGroupUnread] = useState(0)
   const [form, setForm] = useState({
     title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team', severity: 'medium',
   })
@@ -641,14 +660,15 @@ export default function Tracker({ user, onLogout }) {
 
   const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory', groups: 'Groups' }[nav]
 
-  const navItem = (key, label) => (
+  const navItem = (key, label, icon) => (
     <button
       onClick={() => goTo(key)}
-      className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+      className={`w-full flex items-center gap-3 text-left px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
         nav === key ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white hover:bg-white/5'
       }`}
     >
-      {label}
+      <span className="shrink-0">{icon}</span>
+      <span className="min-w-0">{label}</span>
     </button>
   )         
 
@@ -704,10 +724,10 @@ export default function Tracker({ user, onLogout }) {
           </div>
           <p className="font-mono text-[10px] uppercase tracking-wider text-white/30 mb-2 px-3.5">Navigate</p>
           <nav className="space-y-1">
-            {navItem('mine', 'My Tasks')}
-            {navItem('general', 'General')}
-            {navItem('team', 'My Team')}
-            {navItem('safety', 'Safety at Site')}
+            {navItem('mine', 'My Tasks', <ClipboardIcon className="w-4 h-4" />)}
+            {navItem('general', 'General', <MegaphoneIcon className="w-4 h-4" />)}
+            {navItem('team', 'My Team', <TeamIcon className="w-4 h-4" />)}
+            {navItem('safety', 'Safety at Site', <ShieldNavIcon className="w-4 h-4" />)}
             {navItem(
               'directory',
               <span className="flex items-center gap-2">
@@ -717,7 +737,8 @@ export default function Tracker({ user, onLogout }) {
                     {unreadMessages > 99 ? '99+' : unreadMessages}
                   </span>
                 )}
-              </span>
+              </span>,
+              <BookIcon className="w-4 h-4" />
             )}  
             {navItem(
               'groups',
@@ -728,8 +749,9 @@ export default function Tracker({ user, onLogout }) {
                     {groupUnread > 99 ? '99+' : groupUnread}
                   </span>
                 )}
-              </span>
-            )}     
+              </span>,
+              <GroupsNavIcon className="w-4 h-4" />
+            )}
           </nav>
         </div>
         <div className="border-t border-white/10 pt-4">
@@ -767,7 +789,7 @@ export default function Tracker({ user, onLogout }) {
               onAssign={(person) => setAssigningTo(person)}
             />    
           ) : nav === 'groups' ? (
-            <GroupsList user={user} profiles={profiles} onUnreadChange={setGroupUnread} />  
+            <GroupsList user={user} profiles={profiles} onUnreadChange={setGroupUnread} />
           ) : (      
             <>
               {nav === 'general' && (
@@ -1115,4 +1137,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}     
+}      
