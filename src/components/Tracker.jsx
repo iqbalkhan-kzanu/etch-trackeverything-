@@ -1271,7 +1271,7 @@ export default function Tracker({ user, onLogout }) {
                         ))}
                       </div>
                       <p className="font-mono text-[10px] text-ink-muted mt-2">
-                        Same-team people see this under "My Team". People from other teams see it under "My Tasks", and everyone added gets notified.
+                        The more you work with a team, the more you learn—and the more you grow.   
                       </p>
                     </div>
                   )}
