@@ -6,6 +6,7 @@ import ChatModal from './ChatModal'
 import AssignWorkModal from './AssignWorkModal'
 import SendBackModal from './SendBackModal'
 import SubmitForApprovalModal from './SubmitForApprovalModal'
+import GroupsList from './GroupsList'
 
 const SOURCES = ['governance', 'audit', 'project', 'leadership_review', 'other']
 const STAGES = ['open', 'in_progress', 'ready_to_close', 'pending_approval', 'closed']
@@ -288,7 +289,7 @@ export default function Tracker({ user, onLogout }) {
   const mentionInputRefs = useRef({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [nav, setNav] = useState('mine') // 'mine' | 'general' | 'team' | 'safety' | 'directory'
+  const [nav, setNav] = useState('mine') // 'mine' | 'general' | 'team' | 'safety' | 'directory' | 'groups'
   const [chatUser, setChatUser] = useState(null)
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [filterStatus, setFilterStatus] = useState('all')
@@ -358,7 +359,7 @@ export default function Tracker({ user, onLogout }) {
   }
 
   async function loadProfiles() {
-    const { data, error } = await supabase.from('profiles').select('id, name')
+    const { data, error } = await supabase.from('profiles').select('id, name, team')
     if (!error) setProfiles(data || [])
   }
 
@@ -637,7 +638,7 @@ export default function Tracker({ user, onLogout }) {
     critical: scopedItems.filter((i) => i.status !== 'closed' && i.severity === 'critical').length,
   }
 
-  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory' }[nav]       
+  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory', groups: 'Groups' }[nav]
 
   const navItem = (key, label) => (
     <button
@@ -717,6 +718,7 @@ export default function Tracker({ user, onLogout }) {
                 )}
               </span>
             )}  
+            {navItem('groups', 'Groups')}
           </nav>
         </div>
         <div className="border-t border-white/10 pt-4">
@@ -737,7 +739,7 @@ export default function Tracker({ user, onLogout }) {
             <span className="text-sm font-medium text-ink">{user?.name}</span>
             <button onClick={onLogout} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted border border-line rounded-md px-3 py-2">Log Out</button>
           </div>
-          {nav !== 'safety' && nav !== 'directory' && (     
+          {nav !== 'safety' && nav !== 'directory' && nav !== 'groups' && (     
             <button onClick={() => setShowForm((s) => !s)} className="bg-accent-blue text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-blue/90 transition-colors">
               {showForm ? 'Cancel' : '+ New Action Item'}
             </button>
@@ -753,6 +755,8 @@ export default function Tracker({ user, onLogout }) {
               onMessage={(person) => setChatUser(person)}
               onAssign={(person) => setAssigningTo(person)}
             />    
+          ) : nav === 'groups' ? (
+            <GroupsList user={user} profiles={profiles} />
           ) : (      
             <>
               {nav === 'general' && (
@@ -1100,4 +1104,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}    
+}     
