@@ -344,4 +344,4 @@ export default function GroupChatModal({ currentUser, group, profiles, onClose, 
       </div>
     </div>
   )
-}     
+}       
