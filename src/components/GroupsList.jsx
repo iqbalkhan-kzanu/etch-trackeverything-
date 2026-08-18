@@ -289,8 +289,8 @@ export default function GroupsList({ user, profiles, onUnreadChange }) {
                 <GroupsIcon className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-ink">All Groups</h3>
-                <p className="text-sm text-ink-muted">Overview of your team and other groups.</p>
+                <h3 className="text-lg font-semibold text-ink">Make a Team </h3>   
+                <p className="text-sm text-ink-muted">One Team One Dream</p>    
               </div>
             </div>
 
