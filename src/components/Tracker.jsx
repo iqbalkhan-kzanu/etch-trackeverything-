@@ -305,6 +305,7 @@ export default function Tracker({ user, onLogout }) {
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true)
   const [announcementDraft, setAnnouncementDraft] = useState('')
   const [postingAnnouncement, setPostingAnnouncement] = useState(false)
+  const [groupUnread, setGroupUnread] = useState(0)   
   const [form, setForm] = useState({
     title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team', severity: 'medium',
   })
@@ -718,7 +719,17 @@ export default function Tracker({ user, onLogout }) {
                 )}
               </span>
             )}  
-            {navItem('groups', 'Groups')}
+            {navItem(
+              'groups',
+              <span className="flex items-center gap-2">
+                Groups
+                {groupUnread > 0 && (
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {groupUnread > 99 ? '99+' : groupUnread}
+                  </span>
+                )}
+              </span>
+            )}     
           </nav>
         </div>
         <div className="border-t border-white/10 pt-4">
@@ -756,7 +767,7 @@ export default function Tracker({ user, onLogout }) {
               onAssign={(person) => setAssigningTo(person)}
             />    
           ) : nav === 'groups' ? (
-            <GroupsList user={user} profiles={profiles} />
+            <GroupsList user={user} profiles={profiles} onUnreadChange={setGroupUnread} />  
           ) : (      
             <>
               {nav === 'general' && (

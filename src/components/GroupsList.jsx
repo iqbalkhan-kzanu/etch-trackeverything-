@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient'
 import CreateGroupModal from './CreateGroupModal'
 import GroupChatModal from './GroupChatModal'
 
-export default function GroupsList({ user, profiles }) {
+export default function GroupsList({ user, profiles, onUnreadChange }) {
   const [myGroups, setMyGroups] = useState([])
   const [unread, setUnread] = useState({})
   const [loading, setLoading] = useState(true)
@@ -11,14 +11,14 @@ export default function GroupsList({ user, profiles }) {
   const [openGroup, setOpenGroup] = useState(null)
   const [error, setError] = useState('')
 
-  async function loadMyGroups() {
-    setLoading(true)
+  async function loadMyGroups({ silent = false } = {}) {
+    if (!silent) setLoading(true)
     const { data, error } = await supabase
       .from('chat_group_members')
       .select('group_id, last_read_at, chat_groups(*)')
       .eq('user_id', user.id)
 
-    if (error) { setError(error.message); setLoading(false); return }
+    if (error) { if (!silent) { setError(error.message); setLoading(false) } return }
 
     const groups = (data || [])
       .filter((row) => row.chat_groups)
@@ -37,13 +37,23 @@ export default function GroupsList({ user, profiles }) {
       counts[g.id] = count || 0
     }))
     setUnread(counts)
-    setLoading(false)
+    onUnreadChange?.(Object.values(counts).reduce((sum, n) => sum + n, 0))
+    if (!silent) setLoading(false)
   }
 
-  useEffect(() => { loadMyGroups() }, [user.id])
+  useEffect(() => {
+    loadMyGroups()
+    // background refresh so unread badges update even if you never leave
+    // the tab — kept silent so it doesn't flash a loading state
+    const interval = setInterval(() => loadMyGroups({ silent: true }), 6000)
+    return () => clearInterval(interval)
+  }, [user.id])
 
-  // Lazily create/sync the team channel: makes it if missing, and pulls in
-  // anyone on `user.team` who isn't a member yet (e.g. new hires).
+  // Lazily create the team channel if it doesn't exist yet, and make sure
+  // the current user is a member of it. This only ever inserts the current
+  // user's OWN membership row (never someone else's), which is what keeps
+  // it safe under the "add members" RLS policy — no team member can add
+  // people on another member's behalf through this path.
   async function openTeamChannel() {
     setError('')
     let { data: group } = await supabase
@@ -63,19 +73,26 @@ export default function GroupsList({ user, profiles }) {
       group = created
     }
 
-    const teamMemberIds = profiles.filter((p) => p.team === user.team).map((p) => p.id)
-    const { data: existingMembers } = await supabase
+    const { data: existing } = await supabase
       .from('chat_group_members')
       .select('user_id')
       .eq('group_id', group.id)
-    const existingIds = new Set((existingMembers || []).map((m) => m.user_id))
-    const toAdd = teamMemberIds.filter((id) => !existingIds.has(id))
-    if (toAdd.length > 0) {
-      await supabase.from('chat_group_members').insert(toAdd.map((id) => ({ group_id: group.id, user_id: id })))
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!existing) {
+      const { error: joinError } = await supabase
+        .from('chat_group_members')
+        .insert([{ group_id: group.id, user_id: user.id }])
+      if (joinError) { setError(joinError.message); return }
     }
 
     setOpenGroup(group)
   }
+
+  const teamGroup = myGroups.find((g) => g.is_team_group)
+  const customGroups = myGroups.filter((g) => !g.is_team_group)
+  const teamUnread = teamGroup ? (unread[teamGroup.id] || 0) : 0
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -83,8 +100,9 @@ export default function GroupsList({ user, profiles }) {
         <GroupChatModal
           currentUser={user}
           group={openGroup}
+          profiles={profiles}
           onClose={() => { setOpenGroup(null); loadMyGroups() }}
-          onRead={loadMyGroups}
+          onRead={() => loadMyGroups({ silent: true })}
         />
       )}
       {showCreate && (
@@ -119,18 +137,23 @@ export default function GroupsList({ user, profiles }) {
             <p className="text-xs text-ink-muted">Everyone on your team</p>
           </div>
         </div>
+        {teamUnread > 0 && (
+          <span className="min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0 ml-3">
+            {teamUnread > 99 ? '99+' : teamUnread}
+          </span>
+        )}
       </button>
 
       {loading ? (
         <p className="text-ink-muted font-mono text-sm">Loading groups…</p>
-      ) : myGroups.filter((g) => !g.is_team_group).length === 0 ? (
+      ) : customGroups.length === 0 ? (
         <div className="border border-dashed border-line rounded-xl p-8 text-center bg-surface">
           <p className="text-ink font-medium">No custom groups yet.</p>
           <p className="text-ink-muted text-sm mt-1">Create one to chat with a specific set of people.</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {myGroups.filter((g) => !g.is_team_group).map((g) => (
+          {customGroups.map((g) => (
             <button
               key={g.id}
               onClick={() => setOpenGroup(g)}
@@ -150,4 +173,4 @@ export default function GroupsList({ user, profiles }) {
       )}
     </div>
   )
-}       
+}      
