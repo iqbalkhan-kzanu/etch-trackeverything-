@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import Safety from './SafetySection'
 import Directory from './Directory' 
 import ChatModal from './ChatModal'   
+import NewGroupModal from './NewGroupModal'
 import AssignWorkModal from './AssignWorkModal'
 import SendBackModal from './SendBackModal'
 import SubmitForApprovalModal from './SubmitForApprovalModal'
@@ -111,11 +112,6 @@ function WaferGrid({ className = '' }) {
   )
 }      
 
-// Each tile gets a thin top accent + tinted number in its category color
-// (same muted tones used for status badges elsewhere), so the row reads as
-// a coherent, data-driven dashboard rather than five flat gray boxes.
-// Overdue/Critical still get the alert treatment (solid red + pulse dot)
-// so they visually outrank the rest when non-zero.
 function StatTile({ label, value, color = '#5C6670', alert = false }) {
   const isAlert = alert && value > 0
   const accent = isAlert ? '#C1443C' : color
@@ -156,9 +152,6 @@ function Timeline({ entries }) {
   )
 }
 
-// Segmented indicator instead of a rounded pill split — reuses the same
-// visual language as StageBar so the sidebar reads as part of the same
-// system rather than a bolted-on widget.
 function OwnerStatusPanel({ items }) {
   const active = items.filter((i) => i.status !== 'closed')
   const byOwner = {}
@@ -285,6 +278,57 @@ function AnnouncementsPanel({ announcements, loading, user, draft, onDraftChange
   )
 }
 
+function GroupsPanel({ channels, groupUnread, onOpen, onNewGroup }) {
+  return (
+    <div className="max-w-2xl">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">Group Chats</p>
+          <h2 className="text-xl font-semibold text-ink">Your groups</h2>
+        </div>
+        <button onClick={onNewGroup} className="bg-accent-blue text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-blue/90 transition-colors whitespace-nowrap">
+          + New Group
+        </button>
+      </div>
+
+      {channels.length === 0 ? (
+        <div className="border border-dashed border-line rounded-xl p-10 text-center bg-surface">
+          <p className="text-ink font-medium">No group chats yet.</p>
+          <p className="text-ink-muted text-sm mt-1">Start one to coordinate with a few people at once.</p>
+        </div>
+      ) : (
+        <div className="border border-line rounded-xl bg-surface divide-y divide-line overflow-hidden shadow-sm">
+          {channels.map((c) => {
+            const unread = groupUnread[c.id] || 0
+            return (
+              <button
+                key={c.id}
+                onClick={() => onOpen(c)}
+                className="w-full flex items-center justify-between gap-3 px-5 py-3.5 text-left hover:bg-line/30 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-lg bg-accent-blue/10 text-accent-blue flex items-center justify-center text-sm font-semibold shrink-0">
+                    #
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-ink truncate">{c.name}</p>
+                    {c.team && <p className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">{c.team}</p>}
+                  </div>
+                </div>
+                {unread > 0 && (
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                    {unread > 99 ? '99+' : unread}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Tracker({ user, onLogout }) {
   const [items, setItems] = useState([])
   const [activity, setActivity] = useState({})
@@ -298,9 +342,12 @@ export default function Tracker({ user, onLogout }) {
   const mentionInputRefs = useRef({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [nav, setNav] = useState('mine') // 'mine' | 'general' | 'team' | 'safety'
-  const [chatUser, setChatUser] = useState(null)    
-  const [unreadMessages, setUnreadMessages] = useState(0)
+  const [nav, setNav] = useState('mine') // 'mine' | 'general' | 'team' | 'safety' | 'directory' | 'groups'
+  const [chatTarget, setChatTarget] = useState(null) // { recipient } for DM, or { channel } for group
+  const [showNewGroup, setShowNewGroup] = useState(false)
+  const [channels, setChannels] = useState([])
+  const [groupUnread, setGroupUnread] = useState({}) // { channelId: count }
+  const [unreadMessages, setUnreadMessages] = useState(0) // DM unread only
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterOwner, setFilterOwner] = useState('')
   const [filterSeverity, setFilterSeverity] = useState('all')
@@ -346,6 +393,30 @@ export default function Tracker({ user, onLogout }) {
     if (!error) setUnreadMessages(count || 0)
   }
 
+  async function loadChannels() {
+    if (!user?.id) return
+    const { data: memberRows, error: memErr } = await supabase
+      .from('channel_members')
+      .select('channel_id, last_read_at, channels(id, name, team, created_by, created_at)')
+      .eq('user_id', user.id)
+    if (memErr || !memberRows) return
+
+    const chs = memberRows.map((r) => r.channels).filter(Boolean).sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    setChannels(chs)
+
+    const unreadEntries = await Promise.all(memberRows.map(async (r) => {
+      if (!r.channels) return [r.channel_id, 0]
+      const { count } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('channel_id', r.channel_id)
+        .neq('sender_id', user.id)
+        .gt('created_at', r.last_read_at || '1970-01-01')
+      return [r.channel_id, count || 0]
+    }))
+    setGroupUnread(Object.fromEntries(unreadEntries))
+  }
+
   async function loadAnnouncements() {
     setLoadingAnnouncements(true)
     const { data, error } = await supabase.from('announcements').select('*').order('created_at', { ascending: false })
@@ -372,15 +443,27 @@ export default function Tracker({ user, onLogout }) {
     if (!error) setProfiles(data || [])
   }
 
-  useEffect(() => { loadItems(); loadAnnouncements(); loadProfiles() }, [])
+  useEffect(() => { loadItems(); loadAnnouncements(); loadProfiles(); loadChannels() }, [])
 
   useEffect(() => {
     loadUnreadMessages()
-    const interval = setInterval(loadUnreadMessages, 5000)
+    loadChannels()
+    const interval = setInterval(() => { loadUnreadMessages(); loadChannels() }, 5000)
     return () => clearInterval(interval)
   }, [user?.id])
 
   function goTo(key) { setNav(key); setMobileNavOpen(false) }
+
+  function openDm(person) { setChatTarget({ recipient: person }) }
+  function openGroup(channel) { setChatTarget({ channel }) }
+  function closeChat() {
+    setChatTarget(null)
+    loadUnreadMessages()
+    loadChannels()
+  }
+  function handleLeftGroup() {
+    loadChannels()
+  }
 
   async function handleCreate(e) {
     e.preventDefault()
@@ -406,8 +489,6 @@ export default function Tracker({ user, onLogout }) {
     loadItems()
   }
 
-  // Owner submits a "ready to close" item for their team manager's approval,
-  // attaching a completion note and any pictures/evidence.
   async function handleSubmitForApproval({ note, images }) {
     const item = submittingItem
     if (!item) return
@@ -448,10 +529,6 @@ export default function Tracker({ user, onLogout }) {
     loadItems()
   }
 
-  // Manager approves a pending item — closes it, freezes the current
-  // work summary + files + timeline into close_snapshot so later edits to
-  // unrelated fields (e.g. a late mentor comment) can never quietly alter
-  // what was actually submitted as proof of completion.
   async function approveItem(item) {
     const closeSnapshot = {
       completion_note: item.completion_note || null,
@@ -484,7 +561,6 @@ export default function Tracker({ user, onLogout }) {
     loadItems()
   }
 
-  // Manager sends a pending item back to "Ready to Close" with a comment.
   async function handleSendBack({ note }) {
     const item = sendingBackItem
     const { error } = await supabase.from('action_items').update({
@@ -512,9 +588,6 @@ export default function Tracker({ user, onLogout }) {
     setBlockEditing((prev) => ({ ...prev, [item.id]: true }))
   }
 
-  // Owner flags an item as blocked with a reason — distinct from "overdue",
-  // so a manager can see it's a dependency/obstacle, not neglect. Notifies
-  // the team's manager directly since that's usually who can unblock it.
   async function flagBlocked(item) {
     const reason = (blockDraft[item.id] || '').trim()
     if (!reason) return
@@ -554,8 +627,6 @@ export default function Tracker({ user, onLogout }) {
     setMentionState(null)
   }
 
-  // Detects an in-progress "@partial" token right before the cursor as the
-  // person types, so we can show matching profiles live.
   function handleMentorDraftChange(item, e) {
     const value = e.target.value
     const cursor = e.target.selectionStart
@@ -570,9 +641,6 @@ export default function Tracker({ user, onLogout }) {
     }
   }
 
-  // Replaces the in-progress "@partial" token with the chosen person's full
-  // mention, quoting it if their name has a space, then refocuses the caret
-  // right after the inserted mention.
   function selectMention(item, profile) {
     const draft = mentorDraft[item.id] || ''
     const { start, end } = mentionState
@@ -623,11 +691,6 @@ export default function Tracker({ user, onLogout }) {
     loadItems()
   }
 
-  // "team" scope also surfaces items that are PRIVATE but currently
-  // pending_approval, so a manager can still see and act on them even
-  // though the owner never made the item team-visible. Without this, a
-  // private item submitted for approval was invisible to the approving
-  // manager on every tab.
   const scopedItems = items.filter((i) => {
     if (nav === 'mine') return i.owner_name === user?.name
     if (nav === 'general') return i.visibility === 'general'
@@ -649,9 +712,6 @@ export default function Tracker({ user, onLogout }) {
     return true
   })
 
-  // Severity (critical first) takes priority over deadline when sorting is
-  // enabled, so the most urgent work always surfaces to the top of the list
-  // regardless of how far out its deadline sits.
   const sortedFiltered = sortBySeverity
     ? [...filtered].sort((a, b) => {
         const sevDiff = (SEVERITY_RANK[a.severity] ?? 2) - (SEVERITY_RANK[b.severity] ?? 2)
@@ -670,7 +730,9 @@ export default function Tracker({ user, onLogout }) {
     critical: scopedItems.filter((i) => i.status !== 'closed' && i.severity === 'critical').length,
   }
 
-  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory' }[nav]       
+  const totalGroupUnread = Object.values(groupUnread).reduce((a, b) => a + b, 0)
+
+  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory', groups: 'Group Chats' }[nav]       
 
   const navItem = (key, label) => (
     <button
@@ -687,15 +749,28 @@ export default function Tracker({ user, onLogout }) {
     <div className="min-h-screen flex bg-gradient-to-br from-[#F5F6F7] via-[#EFF1F2] to-[#E4E7EA] font-sans text-ink relative">        
       <WaferGrid />
 
-{chatUser && (  
-  <ChatModal 
+{chatTarget && (
+  <ChatModal
     currentUser={user}
-    recipient={chatUser}
-    onClose={() => {
-      setChatUser(null)
-      loadUnreadMessages()
+    recipient={chatTarget.recipient}
+    channel={chatTarget.channel}
+    profiles={profiles}
+    onClose={closeChat}
+    onMessagesRead={() => { loadUnreadMessages(); loadChannels() }}
+    onLeftGroup={handleLeftGroup}
+  />
+)}
+
+{showNewGroup && (
+  <NewGroupModal
+    user={user}
+    profiles={profiles}
+    onCancel={() => setShowNewGroup(false)}
+    onCreated={(ch) => {
+      setShowNewGroup(false)
+      loadChannels()
+      setChatTarget({ channel: ch })
     }}
-    onMessagesRead={loadUnreadMessages}
   />
 )}
 
@@ -749,7 +824,18 @@ export default function Tracker({ user, onLogout }) {
                   </span>
                 )}
               </span>
-            )}  
+            )}
+            {navItem(
+              'groups',
+              <span className="flex items-center gap-2">
+                Group Chats
+                {totalGroupUnread > 0 && (
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {totalGroupUnread > 99 ? '99+' : totalGroupUnread}
+                  </span>
+                )}
+              </span>
+            )}
           </nav>
         </div>
         <div className="border-t border-white/10 pt-4">
@@ -770,7 +856,7 @@ export default function Tracker({ user, onLogout }) {
             <span className="text-sm font-medium text-ink">{user?.name}</span>
             <button onClick={onLogout} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted border border-line rounded-md px-3 py-2">Log Out</button>
           </div>
-          {nav !== 'safety' && nav !== 'directory' && (     
+          {nav !== 'safety' && nav !== 'directory' && nav !== 'groups' && (
             <button onClick={() => setShowForm((s) => !s)} className="bg-accent-blue text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-blue/90 transition-colors">
               {showForm ? 'Cancel' : '+ New Action Item'}
             </button>
@@ -783,9 +869,16 @@ export default function Tracker({ user, onLogout }) {
           ) : nav === 'directory' ? (
             <Directory
               user={user}
-              onMessage={(person) => setChatUser(person)}
+              onMessage={(person) => openDm(person)}
               onAssign={(person) => setAssigningTo(person)}
             />    
+          ) : nav === 'groups' ? (
+            <GroupsPanel
+              channels={channels}
+              groupUnread={groupUnread}
+              onOpen={openGroup}
+              onNewGroup={() => setShowNewGroup(true)}
+            />
           ) : (      
             <>
               {nav === 'general' && (
@@ -1132,5 +1225,5 @@ export default function Tracker({ user, onLogout }) {
         </div>
       </div>
     </div>
-  )
-}     
+  )  
+}  
