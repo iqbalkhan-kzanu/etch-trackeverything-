@@ -437,6 +437,8 @@ export default function Tracker({ user, onLogout }) {
   const [form, setForm] = useState({
     title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team', severity: 'medium',
   })
+  const [taskType, setTaskType] = useState('personal') // 'personal' | 'group'
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState([])
 
   async function loadItems() {
     setLoading(true)
@@ -504,12 +506,40 @@ export default function Tracker({ user, onLogout }) {
 
   async function handleCreate(e) {
     e.preventDefault()
-    const { data, error } = await supabase.from('action_items').insert([form]).select()
+
+    const participants = taskType === 'group'
+      ? selectedParticipantIds
+          .map((id) => profiles.find((p) => p.id === id))
+          .filter(Boolean)
+          .map((p) => ({ id: p.id, name: p.name, team: p.team }))
+      : []
+
+    const payload = { ...form, participants }
+    const { data, error } = await supabase.from('action_items').insert([payload]).select()
     if (error) { setError(error.message); return }
+
     if (data && data[0]) {
-      await supabase.from('item_activity').insert([{ item_id: data[0].id, actor: user?.name || 'Unknown', action: 'created', note: `Logged from ${form.source.replace('_', ' ')} · ${form.severity} severity` }])
+      const participantNote = participants.length > 0 ? ` · group task with ${participants.map((p) => p.name).join(', ')}` : ''
+      await supabase.from('item_activity').insert([{
+        item_id: data[0].id, actor: user?.name || 'Unknown', action: 'created',
+        note: `Logged from ${form.source.replace('_', ' ')} · ${form.severity} severity${participantNote}`,
+      }])
+
+      // Notify everyone added to the group task, except the creator themself.
+      for (const p of participants) {
+        if (p.id === user?.id) continue
+        const { error: msgError } = await supabase.from('messages').insert([{
+          sender_id: user?.id,
+          recipient_id: p.id,
+          body: `${user?.name} added you to the task "${form.title}" (due ${form.deadline}).`,
+        }])
+        if (msgError) console.error('participant notify failed:', msgError.message)
+      }
     }
+
     setForm({ title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team', severity: 'medium' })
+    setTaskType('personal')
+    setSelectedParticipantIds([])
     setShowForm(false)
     loadItems()
   }
@@ -729,7 +759,13 @@ export default function Tracker({ user, onLogout }) {
   }
 
   const scopedItems = items.filter((i) => {
-    if (nav === 'mine') return i.owner_name === user?.name
+    // Group-task participants from a different team than the item's team
+    // see it as a personal item, not a team item — same-team participants
+    // already see it through the normal team-visibility rule below.
+    const participants = Array.isArray(i.participants) ? i.participants : []
+    const isCrossTeamParticipant = participants.some((p) => p.id === user?.id && p.team !== i.team)
+
+    if (nav === 'mine') return i.owner_name === user?.name || isCrossTeamParticipant
     if (nav === 'general') return i.visibility === 'general'
     if (nav === 'team') {
       const visibleToTeam = i.visibility === 'team' && i.team === user?.team
@@ -836,6 +872,11 @@ export default function Tracker({ user, onLogout }) {
               {item.assigned_by_mentor && (
                 <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded" style={{ backgroundColor: '#7C5CBF15', color: '#7C5CBF' }}>
                   Assigned by {item.assigned_by_mentor}
+                </span>
+              )}
+              {Array.isArray(item.participants) && item.participants.length > 0 && (
+                <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1" style={{ backgroundColor: '#2B6CB015', color: '#2B6CB0' }}>
+                  👥 Group Task · {item.participants.map((p) => p.name).join(', ')}
                 </span>
               )}
               {overdue && <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-red/10 text-accent-red">Overdue</span>}
@@ -1184,6 +1225,57 @@ export default function Tracker({ user, onLogout }) {
                     <textarea className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
                       value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
                   </div>
+
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Task Type</label>
+                    <div className="flex gap-2 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setTaskType('personal')}
+                        className={`flex-1 text-sm font-medium rounded-md px-3 py-2 border transition-colors ${
+                          taskType === 'personal' ? 'border-accent-blue bg-accent-blue/10 text-accent-blue' : 'border-line text-ink-muted hover:text-ink'
+                        }`}
+                      >
+                        Personal Task
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setTaskType('group'); setForm((f) => ({ ...f, visibility: 'team' })) }}
+                        className={`flex-1 text-sm font-medium rounded-md px-3 py-2 border transition-colors ${
+                          taskType === 'group' ? 'border-accent-blue bg-accent-blue/10 text-accent-blue' : 'border-line text-ink-muted hover:text-ink'
+                        }`}
+                      >
+                        Group Task
+                      </button>
+                    </div>
+                  </div>
+
+                  {taskType === 'group' && (
+                    <div className="col-span-1 sm:col-span-2 border border-line rounded-md p-3 bg-canvas">
+                      <p className="font-mono text-[11px] uppercase tracking-wider text-ink-muted mb-2">
+                        Add people to this task
+                      </p>
+                      <div className="max-h-40 overflow-y-auto space-y-1">
+                        {profiles.filter((p) => p.id !== user?.id).map((p) => (
+                          <label key={p.id} className="flex items-center gap-2 px-1 py-1.5 rounded-md hover:bg-line/40 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedParticipantIds.includes(p.id)}
+                              onChange={() => setSelectedParticipantIds((prev) =>
+                                prev.includes(p.id) ? prev.filter((id) => id !== p.id) : [...prev, p.id]
+                              )}
+                            />
+                            <span className="text-sm text-ink truncate">{p.name}</span>
+                            <span className="font-mono text-[10px] text-ink-muted ml-auto shrink-0">{p.team}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="font-mono text-[10px] text-ink-muted mt-2">
+                        Same-team people see this under "My Team". People from other teams see it under "My Tasks", and everyone added gets notified.
+                      </p>
+                    </div>
+                  )}
+
                   <div>
                     <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Owner name</label>
                     <input required className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue"
@@ -1241,7 +1333,7 @@ export default function Tracker({ user, onLogout }) {
                   value={filterOwner} onChange={(e) => setFilterOwner(e.target.value)} />
                 <label className="flex items-center gap-2 text-sm text-ink-muted font-mono text-[11px] uppercase tracking-wider cursor-pointer select-none">
                   <input type="checkbox" checked={sortBySeverity} onChange={(e) => setSortBySeverity(e.target.checked)} />
-                  Tough first  
+                  Sort by severity
                 </label>
               </div>
 
@@ -1327,4 +1419,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}   
+}      
