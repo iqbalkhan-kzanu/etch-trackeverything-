@@ -508,7 +508,45 @@ export default function Tracker({ user, onLogout }) {
     if (!error) setProfiles(data || [])
   }
 
-  useEffect(() => { loadItems(); loadProfiles() }, [])
+  // Silently ensures the current user is a member of their team's channel —
+  // runs on every app load so new signups (or anyone who never opened the
+  // Groups tab) get added automatically, not just when they click into it.
+  async function ensureTeamMembership() {
+    if (!user?.id || !user?.team) return
+
+    let { data: group } = await supabase
+      .from('chat_groups')
+      .select('id')
+      .eq('is_team_group', true)
+      .eq('team', user.team)
+      .maybeSingle()
+
+    if (!group) {
+      const { data: created, error: createError } = await supabase
+        .from('chat_groups')
+        .insert([{ name: `${user.team} Team`, is_team_group: true, team: user.team, created_by: user.id }])
+        .select()
+        .single()
+      if (createError) { console.error('team channel create failed:', createError.message); return }
+      group = created
+    }
+
+    const { data: existing } = await supabase
+      .from('chat_group_members')
+      .select('user_id')
+      .eq('group_id', group.id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!existing) {
+      const { error: joinError } = await supabase
+        .from('chat_group_members')
+        .insert([{ group_id: group.id, user_id: user.id }])
+      if (joinError) console.error('team channel auto-join failed:', joinError.message)
+    }
+  }
+
+  useEffect(() => { loadItems(); loadProfiles(); ensureTeamMembership() }, [user?.id, user?.team])
 
   useEffect(() => {
     loadAnnouncements()
@@ -1240,7 +1278,7 @@ export default function Tracker({ user, onLogout }) {
       <div className="flex-1 min-w-0 relative">
         <div className="border-b border-line bg-surface/95 backdrop-blur-sm px-6 md:px-10 py-6 flex items-center justify-between gap-4 flex-wrap sticky top-0 z-10">
           <div className="min-w-0 flex items-center gap-3">
-            <img src="/one-team-logo.png" alt="One Team One Dream One Semi" className="h-10 sm:h-12 w-auto shrink-0" />
+            <img src="/one-team-dream-logo.png" alt="1 Team, 1 Dream" className="h-9 sm:h-11 w-auto shrink-0" />
             <h1 className="text-xl font-semibold text-ink">{navTitle}</h1>
           </div>
           <div className="flex items-center gap-3 md:hidden">
@@ -1497,4 +1535,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}     
+}      
