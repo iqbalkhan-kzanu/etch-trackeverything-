@@ -92,12 +92,11 @@ const TOKENS = `
   .etch-logo { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
   .etch-logo span { color: var(--litho-blue); }
 
-  /* ---------- brand logo chips ----------
-     This mark is solid black type, so — unlike the old navy-stroked icon —
-     it needs a LIGHT chip to read against the near-black background, and a
-     rounded-rectangle shape since the logotype is wide/horizontal rather
-     than square. A faint blue glow still ties it back into the litho-blue
-     accent instead of looking like a plain white sticker. */
+  /* ---------- brand logo chip ----------
+     This mark is solid black type, so it needs a LIGHT chip to read
+     against the near-black background, and a rounded-rectangle shape
+     since the logotype is wide/horizontal rather than square. A faint
+     blue glow ties it back into the litho-blue accent. */
   .etch-logo-chip {
     display: flex;
     align-items: center;
@@ -110,14 +109,6 @@ const TOKENS = `
   }
   .etch-logo-chip-nav { height: 40px; padding: 6px 10px; }
   .etch-logo-chip-nav img { height: 100%; width: auto; display: block; }
-
-  .etch-logo-chip-feature {
-    height: 84px;
-    padding: 14px 24px;
-    margin: 0 auto 20px;
-    box-shadow: 0 0 32px rgba(59,130,246,0.26), 0 3px 10px rgba(0,0,0,0.3);
-  }
-  .etch-logo-chip-feature img { height: 100%; width: auto; display: block; }
 
   /* ---------- hero ---------- */
   .etch-hero {
@@ -471,9 +462,6 @@ export default function Landing({ onEnter }) {
       </div>
 
       <div className="etch-features">
-        <div className="etch-logo-chip etch-logo-chip-feature">
-          <img src="/one-team-dream-logo.png" alt="1 Team, 1 Dream" />
-        </div>
         <p className="etch-features-eyebrow etch-mono">ONE TEAM ONE DREAM ONE SEMI</p>
         <h2 className="etch-features-h2">Visibility, accountability, escalation, closure.</h2>
         <div className="etch-grid">
@@ -495,4 +483,4 @@ export default function Landing({ onEnter }) {
       </div>    
     </div>
   )
-}    
+}      
