@@ -47,9 +47,6 @@ const SEVERITY_STYLES = {
 }
 const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 }
 
-// Deterministic per-person avatar color, so the same name always gets the
-// same color across the table (matches the pattern already used for teams
-// and groups elsewhere in the app).
 const AVATAR_PALETTE = ['#2B6CB0', '#7C5CBF', '#2F8F5B', '#D98C2B', '#C1443C', '#1F9E9E', '#C15A9E']
 function personColor(name) {
   let hash = 0
@@ -322,7 +319,6 @@ function GroupsNavIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>)
 }
 
-// Stat-card icons — small, single-color, matching the nav icon style.
 function ClockStatIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></svg>)
 }
@@ -339,8 +335,6 @@ function AlertTriangleStatIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 2 20h20L12 3Z" /><path d="M12 10v4M12 17h.01" /></svg>)
 }
 
-// Tasks Overview donut, shown in the sidebar. Draws each status as a
-// proportional arc using stroke-dasharray/offset around a shared circle.
 function DonutChart({ segments, total, size = 116, thickness = 14 }) {
   const radius = (size - thickness) / 2
   const circumference = 2 * Math.PI * radius
@@ -372,8 +366,6 @@ function DonutChart({ segments, total, size = 116, thickness = 14 }) {
 }
 
 function TasksOverviewCard({ counts, total }) {
-  // Mutually exclusive statuses — these make up the ring itself, and always
-  // sum to `total` since every item has exactly one status.
   const segments = [
     { key: 'open', label: 'Open', color: STATUS_STYLES.open.top, value: counts.open },
     { key: 'in_progress', label: 'In Progress', color: STATUS_STYLES.in_progress.top, value: counts.in_progress },
@@ -381,9 +373,6 @@ function TasksOverviewCard({ counts, total }) {
     { key: 'pending_approval', label: 'Pending', color: STATUS_STYLES.pending_approval.top, value: counts.pending_approval },
     { key: 'closed', label: 'Closed', color: STATUS_STYLES.closed.top, value: counts.closed },
   ]
-  // Overdue/Critical are flags, not separate statuses — an item can be both
-  // "Open" AND "Overdue", so they're listed for reference only and are NOT
-  // drawn as extra ring wedges (that would double-count and overstate the total).
   const flags = [
     { key: 'overdue', label: 'Overdue', color: '#C1443C', value: counts.overdue },
     { key: 'critical', label: 'Critical', color: '#C1443C', value: counts.critical },
@@ -428,7 +417,7 @@ export default function Tracker({ user, onLogout }) {
   const lastSeenHazardIdRef = useRef(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [nav, setNav] = useState('mine') // 'mine' | 'general' | 'team' | 'safety' | 'directory' | 'groups'
+  const [nav, setNav] = useState('mine')
   const [chatUser, setChatUser] = useState(null)
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [filterStatus, setFilterStatus] = useState('all')
@@ -451,7 +440,7 @@ export default function Tracker({ user, onLogout }) {
   const [form, setForm] = useState({
     title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team', severity: 'medium',
   })
-  const [taskType, setTaskType] = useState('personal') // 'personal' | 'group'
+  const [taskType, setTaskType] = useState('personal')
   const [selectedParticipantIds, setSelectedParticipantIds] = useState([])
 
   async function loadItems() {
@@ -508,9 +497,6 @@ export default function Tracker({ user, onLogout }) {
     if (!error) setProfiles(data || [])
   }
 
-  // Silently ensures the current user is a member of their team's channel —
-  // runs on every app load so new signups (or anyone who never opened the
-  // Groups tab) get added automatically, not just when they click into it.
   async function ensureTeamMembership() {
     if (!user?.id || !user?.team) return
 
@@ -554,13 +540,11 @@ export default function Tracker({ user, onLogout }) {
     return () => clearInterval(interval)
   }, [])
 
-  // Detect newly-arrived hazard alerts: pop a toast (skipped on first load)
-  // and keep an "unseen" count that clears when the person opens General.
   useEffect(() => {
     const hazards = announcements.filter((a) => a.type === 'hazard_alert')
     if (hazards.length === 0) return
 
-    const newest = hazards[0] // announcements are ordered newest-first
+    const newest = hazards[0]
     if (newest.id !== lastSeenHazardIdRef.current) {
       if (lastSeenHazardIdRef.current !== null) {
         setHazardToast(newest)
@@ -611,7 +595,6 @@ export default function Tracker({ user, onLogout }) {
         note: `Logged from ${form.source.replace('_', ' ')} · ${form.severity} severity${participantNote}`,
       }])
 
-      // Notify everyone added to the group task, except the creator themself.
       for (const p of participants) {
         if (p.id === user?.id) continue
         const { error: msgError } = await supabase.from('messages').insert([{
@@ -845,9 +828,6 @@ export default function Tracker({ user, onLogout }) {
   }
 
   const scopedItems = items.filter((i) => {
-    // Group-task participants from a different team than the item's team
-    // see it as a personal item, not a team item — same-team participants
-    // already see it through the normal team-visibility rule below.
     const participants = Array.isArray(i.participants) ? i.participants : []
     const isCrossTeamParticipant = participants.some((p) => p.id === user?.id && p.team !== i.team)
 
@@ -894,10 +874,6 @@ export default function Tracker({ user, onLogout }) {
     return `${((n / totalScoped) * 100).toFixed(1)}%`
   }
 
-  // Keep the focused item in sync with whatever the current filters show —
-  // default to the top of the sorted list, and fall back to it whenever the
-  // previously-focused item drops out of view (filters changed, item closed
-  // out of the list, etc).
   useEffect(() => {
     if (sortedFiltered.length === 0) { setFocusedItemId(null); return }
     if (!sortedFiltered.find((i) => i.id === focusedItemId)) {
@@ -922,9 +898,6 @@ export default function Tracker({ user, onLogout }) {
     </button>
   )         
 
-  // The full-detail card — used once, for whichever item is "focused".
-  // Pulled out of the old per-item .map() so it can be reused as-is; all
-  // logic and handlers below are unchanged from before.
   function renderItemCard(item) {
     const style = STATUS_STYLES[item.status]
     const sevStyle = SEVERITY_STYLES[item.severity] || SEVERITY_STYLES.medium
@@ -1279,7 +1252,6 @@ export default function Tracker({ user, onLogout }) {
         <div className="border-b border-line bg-surface/95 backdrop-blur-sm px-6 md:px-10 py-6 flex items-center justify-between gap-4 flex-wrap sticky top-0 z-10">
           <div className="min-w-0 flex items-center gap-3">
             <img src="/one-team-dream-logo.png" alt="1 Team, 1 Dream" className="h-9 sm:h-11 w-auto shrink-0" />
-            <h1 className="text-xl font-semibold text-ink">{navTitle}</h1>
           </div>
           <div className="flex items-center gap-3 md:hidden">
             <button onClick={() => setMobileNavOpen(true)} className="border border-line rounded-md px-3 py-2 text-ink bg-surface">☰</button>
@@ -1535,4 +1507,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}      
+}          
