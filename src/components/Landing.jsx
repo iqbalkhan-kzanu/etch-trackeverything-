@@ -84,8 +84,40 @@ const TOKENS = `
     padding: 20px 32px;
     border-bottom: 1px solid var(--line);
   }
+  .etch-nav-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
   .etch-logo { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
   .etch-logo span { color: var(--litho-blue); }
+
+  /* ---------- brand logo chips ----------
+     The uploaded mark has navy strokes that would vanish on our near-black
+     background, so it sits inside a soft glass chip with a faint blue glow
+     — reads clearly and picks up the litho-blue accent instead of looking
+     like a foreign asset dropped on top. */
+  .etch-logo-chip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: radial-gradient(circle at 50% 40%, rgba(59,130,246,0.16), rgba(255,255,255,0.04) 70%);
+    border: 1px solid rgba(255,255,255,0.10);
+    box-shadow: 0 0 18px rgba(59,130,246,0.18), inset 0 0 0 1px rgba(255,255,255,0.03);
+    flex-shrink: 0;
+  }
+  .etch-logo-chip-nav { width: 40px; height: 40px; padding: 5px; }
+  .etch-logo-chip-nav img { width: 100%; height: 100%; object-fit: contain; }
+
+  .etch-logo-chip-feature {
+    width: 92px;
+    height: 92px;
+    padding: 12px;
+    margin: 0 auto 18px;
+    box-shadow: 0 0 32px rgba(59,130,246,0.22), inset 0 0 0 1px rgba(255,255,255,0.04);
+  }
+  .etch-logo-chip-feature img { width: 100%; height: 100%; object-fit: contain; }
 
   /* ---------- hero ---------- */
   .etch-hero {
@@ -400,7 +432,12 @@ export default function Landing({ onEnter }) {
       <Ticker />
 
       <div className="etch-nav">
-        <div className="etch-logo">ETCH<span>.</span></div>
+        <div className="etch-nav-left">
+          <div className="etch-logo-chip etch-logo-chip-nav">
+            <img src="/one-team-logo.png" alt="One Team One Dream" />
+          </div>
+          <div className="etch-logo">ETCH<span>.</span></div>
+        </div>
         <button className="etch-cta" onClick={onEnter} style={{ padding: '9px 18px', fontSize: '13px' }}>
           Enter ETCH
         </button>
@@ -434,6 +471,9 @@ export default function Landing({ onEnter }) {
       </div>
 
       <div className="etch-features">
+        <div className="etch-logo-chip etch-logo-chip-feature">
+          <img src="/one-team-logo.png" alt="One Team One Dream" />
+        </div>
         <p className="etch-features-eyebrow etch-mono">ONE TEAM ONE DREAM ONE SEMI</p>
         <h2 className="etch-features-h2">Visibility, accountability, escalation, closure.</h2>
         <div className="etch-grid">
@@ -455,4 +495,4 @@ export default function Landing({ onEnter }) {
       </div>    
     </div>
   )
-}        
+}   
