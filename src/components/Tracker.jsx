@@ -487,7 +487,7 @@ export default function Tracker({ user, onLogout }) {
     const { data, error } = await supabase.from('announcements').select('*').order('created_at', { ascending: false })
     if (!error) setAnnouncements(data || [])
     if (!silent) setLoadingAnnouncements(false)
-  }    
+  }
 
   async function handlePostAnnouncement(e) {
     e.preventDefault()
@@ -514,7 +514,7 @@ export default function Tracker({ user, onLogout }) {
     loadAnnouncements()
     const interval = setInterval(() => loadAnnouncements({ silent: true }), 7000)
     return () => clearInterval(interval)
-  }, [])     
+  }, [])
 
   // Detect newly-arrived hazard alerts: pop a toast (skipped on first load)
   // and keep an "unseen" count that clears when the person opens General.
@@ -1239,8 +1239,8 @@ export default function Tracker({ user, onLogout }) {
 
       <div className="flex-1 min-w-0 relative">
         <div className="border-b border-line bg-surface/95 backdrop-blur-sm px-6 md:px-10 py-6 flex items-center justify-between gap-4 flex-wrap sticky top-0 z-10">
-          <div className="min-w-0">
-            <p className="font-mono text-xs uppercase tracking-wider text-accent-blue mb-1">ONE TEAM ONE DREAM ONE SEMI</p>   
+          <div className="min-w-0 flex items-center gap-3">
+            <img src="/one-team-logo.png" alt="One Team One Dream One Semi" className="h-10 sm:h-12 w-auto shrink-0" />
             <h1 className="text-xl font-semibold text-ink">{navTitle}</h1>
           </div>
           <div className="flex items-center gap-3 md:hidden">
@@ -1497,4 +1497,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}    
+}     
