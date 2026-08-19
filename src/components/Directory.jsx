@@ -12,6 +12,8 @@ const TEAM_META = {
   MODULE: { color: '#5C6670', bg: '#F8FAFC' },
 }
 const MANAGER_COLOR = '#7C5CBF'
+const AVAILABLE_COLOR = '#2F8F5B'
+const UNAVAILABLE_COLOR = '#9AA3AD'
 
 export default function Directory({ user, onMessage, onAssign }) {
   const [profiles, setProfiles] = useState([])
@@ -19,8 +21,9 @@ export default function Directory({ user, onMessage, onAssign }) {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedTeam, setSelectedTeam] = useState('all')
+  const [togglingAvailability, setTogglingAvailability] = useState(false)
 
-  async function loadProfiles() {
+  async function loadProfiles({ silent = false } = {}) {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -69,6 +72,7 @@ export default function Directory({ user, onMessage, onAssign }) {
 
     const interval = setInterval(() => {
       loadUnreadMessages()
+      loadProfiles({ silent: true }) // picks up other people's availability changes
     }, 5000)
 
     return () => clearInterval(interval)
@@ -77,6 +81,15 @@ export default function Directory({ user, onMessage, onAssign }) {
   // Current user's own profile — used to check manager status and team
   const own = profiles.find((p) => p.id === user?.id)
   const isManager = own?.role === 'MANAGER'
+
+  async function toggleAvailability() {
+    if (!own || togglingAvailability) return
+    const next = !(own.is_available ?? true)
+    setTogglingAvailability(true)
+    const { error } = await supabase.from('profiles').update({ is_available: next }).eq('id', user.id)
+    setTogglingAvailability(false)
+    if (!error) loadProfiles({ silent: true })
+  }
 
   // All team names available, regardless of current search — used to populate the team select
   const allTeams = Array.from(
@@ -281,6 +294,9 @@ export default function Directory({ user, onMessage, onAssign }) {
                     const canAssign =
                       isManager && own?.team === team && !isSelf
 
+                    // Defaults to available (true) if never set, matching the DB default.
+                    const isAvailable = m.is_available ?? true
+
                     return (
                       <div
                         key={m.id}
@@ -304,21 +320,28 @@ export default function Directory({ user, onMessage, onAssign }) {
 
                         <div className="flex items-center gap-3">
 
-                          {/* AVATAR */}
-                          <div
-                            className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 text-sm font-semibold"
-                            style={{
-                              backgroundColor: meta.bg,
-                              color: meta.color,
-                            }}
-                          >
-                            {getInitials(m.name)}
+                          {/* AVATAR + AVAILABILITY DOT */}
+                          <div className="relative shrink-0">
+                            <div
+                              className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold"
+                              style={{
+                                backgroundColor: meta.bg,
+                                color: meta.color,
+                              }}
+                            >
+                              {getInitials(m.name)}
+                            </div>
+                            <span
+                              className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-surface"
+                              style={{ backgroundColor: isAvailable ? AVAILABLE_COLOR : UNAVAILABLE_COLOR }}
+                              title={isAvailable ? 'Available' : 'Unavailable'}
+                            />
                           </div>
 
                           {/* PERSON INFO */}
                           <div className="min-w-0 flex-1">
 
-                            <div className="flex items-center gap-2 pr-8">
+                            <div className="flex items-center gap-2 pr-8 flex-wrap">
 
                               <p className="font-semibold text-sm text-ink truncate">
                                 {m.name}
@@ -345,6 +368,13 @@ export default function Directory({ user, onMessage, onAssign }) {
                               {m.email}
                             </p>
 
+                            <p
+                              className="text-[11px] font-medium mt-0.5"
+                              style={{ color: isAvailable ? AVAILABLE_COLOR : UNAVAILABLE_COLOR }}
+                            >
+                              {isAvailable ? 'Available now' : 'Unavailable'}
+                            </p>
+
                           </div>
 
                         </div>
@@ -366,26 +396,48 @@ export default function Directory({ user, onMessage, onAssign }) {
 
                           <div className="flex items-center gap-2">
 
-                            {canAssign && (
+                            {isSelf ? (
                               <button
-                                onClick={() => onAssign(m)}
-                                className="text-xs font-semibold px-3.5 py-1.5 rounded-lg text-white transition-all hover:opacity-90 active:scale-95"
-                                style={{ backgroundColor: MANAGER_COLOR }}
+                                onClick={toggleAvailability}
+                                disabled={togglingAvailability}
+                                className="flex items-center gap-2 text-xs font-semibold px-1 py-1 rounded-full transition-opacity disabled:opacity-50"
+                                title="Toggle your availability"
                               >
-                                Assign Work
+                                <span
+                                  className="relative w-9 h-5 rounded-full transition-colors shrink-0"
+                                  style={{ backgroundColor: isAvailable ? AVAILABLE_COLOR : '#D1D5DB' }}
+                                >
+                                  <span
+                                    className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
+                                    style={{ left: isAvailable ? '18px' : '2px' }}
+                                  />
+                                </span>
+                                <span style={{ color: isAvailable ? AVAILABLE_COLOR : UNAVAILABLE_COLOR }}>
+                                  {isAvailable ? 'Available' : 'Unavailable'}
+                                </span>
                               </button>
-                            )}
+                            ) : (
+                              <>
+                                {canAssign && (
+                                  <button
+                                    onClick={() => onAssign(m)}
+                                    className="text-xs font-semibold px-3.5 py-1.5 rounded-lg text-white transition-all hover:opacity-90 active:scale-95"
+                                    style={{ backgroundColor: MANAGER_COLOR }}
+                                  >
+                                    Assign Work
+                                  </button>
+                                )}
 
-                            {!isSelf && (
-                              <button
-                                onClick={() => onMessage(m)}
-                                className="text-xs font-semibold px-3.5 py-1.5 rounded-lg text-white transition-all hover:opacity-90 active:scale-95"
-                                style={{
-                                  backgroundColor: meta.color,
-                                }}
-                              >
-                                Message
-                              </button>
+                                <button
+                                  onClick={() => onMessage(m)}
+                                  className="text-xs font-semibold px-3.5 py-1.5 rounded-lg text-white transition-all hover:opacity-90 active:scale-95"
+                                  style={{
+                                    backgroundColor: meta.color,
+                                  }}
+                                >
+                                  Message
+                                </button>
+                              </>
                             )}
 
                           </div>
