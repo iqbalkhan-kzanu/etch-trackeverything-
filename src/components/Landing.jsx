@@ -93,31 +93,31 @@ const TOKENS = `
   .etch-logo span { color: var(--litho-blue); }
 
   /* ---------- brand logo chips ----------
-     The uploaded mark has navy strokes that would vanish on our near-black
-     background, so it sits inside a soft glass chip with a faint blue glow
-     — reads clearly and picks up the litho-blue accent instead of looking
-     like a foreign asset dropped on top. */
+     This mark is solid black type, so — unlike the old navy-stroked icon —
+     it needs a LIGHT chip to read against the near-black background, and a
+     rounded-rectangle shape since the logotype is wide/horizontal rather
+     than square. A faint blue glow still ties it back into the litho-blue
+     accent instead of looking like a plain white sticker. */
   .etch-logo-chip {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 999px;
-    background: radial-gradient(circle at 50% 40%, rgba(59,130,246,0.16), rgba(255,255,255,0.04) 70%);
-    border: 1px solid rgba(255,255,255,0.10);
-    box-shadow: 0 0 18px rgba(59,130,246,0.18), inset 0 0 0 1px rgba(255,255,255,0.03);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #FFFFFF, #F1F3F5);
+    border: 1px solid rgba(255,255,255,0.14);
+    box-shadow: 0 0 18px rgba(59,130,246,0.22), 0 2px 6px rgba(0,0,0,0.25);
     flex-shrink: 0;
   }
-  .etch-logo-chip-nav { width: 40px; height: 40px; padding: 5px; }
-  .etch-logo-chip-nav img { width: 100%; height: 100%; object-fit: contain; }
+  .etch-logo-chip-nav { height: 40px; padding: 6px 10px; }
+  .etch-logo-chip-nav img { height: 100%; width: auto; display: block; }
 
   .etch-logo-chip-feature {
-    width: 92px;
-    height: 92px;
-    padding: 12px;
-    margin: 0 auto 18px;
-    box-shadow: 0 0 32px rgba(59,130,246,0.22), inset 0 0 0 1px rgba(255,255,255,0.04);
+    height: 84px;
+    padding: 14px 24px;
+    margin: 0 auto 20px;
+    box-shadow: 0 0 32px rgba(59,130,246,0.26), 0 3px 10px rgba(0,0,0,0.3);
   }
-  .etch-logo-chip-feature img { width: 100%; height: 100%; object-fit: contain; }
+  .etch-logo-chip-feature img { height: 100%; width: auto; display: block; }
 
   /* ---------- hero ---------- */
   .etch-hero {
@@ -434,7 +434,7 @@ export default function Landing({ onEnter }) {
       <div className="etch-nav">
         <div className="etch-nav-left">
           <div className="etch-logo-chip etch-logo-chip-nav">
-            <img src="/one-team-logo.png" alt="One Team One Dream" />
+            <img src="/one-team-dream-logo.png" alt="1 Team, 1 Dream" />
           </div>
           <div className="etch-logo">ETCH<span>.</span></div>
         </div>
@@ -472,7 +472,7 @@ export default function Landing({ onEnter }) {
 
       <div className="etch-features">
         <div className="etch-logo-chip etch-logo-chip-feature">
-          <img src="/one-team-logo.png" alt="One Team One Dream" />
+          <img src="/one-team-dream-logo.png" alt="1 Team, 1 Dream" />
         </div>
         <p className="etch-features-eyebrow etch-mono">ONE TEAM ONE DREAM ONE SEMI</p>
         <h2 className="etch-features-h2">Visibility, accountability, escalation, closure.</h2>
@@ -495,4 +495,4 @@ export default function Landing({ onEnter }) {
       </div>    
     </div>
   )
-}   
+}    
