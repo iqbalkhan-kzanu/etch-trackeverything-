@@ -271,21 +271,32 @@ function AnnouncementsPanel({ announcements, loading, user, draft, onDraftChange
         ) : announcements.length === 0 ? (
           <p className="text-ink-muted text-sm px-5 py-5 text-center">No announcements yet. Be the first to post one.</p>
         ) : (
-          announcements.map((a) => (
-            <div key={a.id} className="px-5 py-3.5 flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-accent-blue/10 text-accent-blue flex items-center justify-center text-[11px] font-semibold shrink-0">
-                {getInitials(a.author_name)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-sm text-ink">{a.author_name}</span>
-                  {a.author_team && <span className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">{a.author_team}</span>}
-                  <span className="font-mono text-[10px] text-ink-muted">· {formatTime(a.created_at)}</span>
+          announcements.map((a) => {
+            const isHazard = a.type === 'hazard_alert'
+            return (
+              <div key={a.id} className={`px-5 py-3.5 flex gap-3 ${isHazard ? 'bg-accent-red/5' : ''}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ${isHazard ? 'bg-accent-red/10 text-accent-red' : 'bg-accent-blue/10 text-accent-blue'}`}>
+                  {isHazard ? '⚠️' : getInitials(a.author_name)}
                 </div>
-                <p className="text-sm text-ink mt-0.5 leading-snug">{a.body}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm text-ink">{isHazard ? 'Safety Alert' : a.author_name}</span>
+                    {isHazard && a.severity && (
+                      <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded" style={{ backgroundColor: '#C1443C15', color: '#C1443C' }}>
+                        {a.severity}
+                      </span>
+                    )}
+                    {a.author_team && <span className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">{a.author_team}</span>}
+                    <span className="font-mono text-[10px] text-ink-muted">· {formatTime(a.created_at)}</span>
+                  </div>
+                  <p className="text-sm text-ink mt-0.5 leading-snug">{a.body}</p>
+                  {isHazard && (
+                    <p className="text-xs text-ink-muted mt-1">Reported by {a.author_name}{a.location ? ` · ${a.location}` : ''}</p>
+                  )}
+                </div>
               </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
     </div>
@@ -414,6 +425,7 @@ export default function Tracker({ user, onLogout }) {
   const [profiles, setProfiles] = useState([])
   const [mentionState, setMentionState] = useState(null)
   const mentionInputRefs = useRef({})
+  const lastSeenHazardIdRef = useRef(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [nav, setNav] = useState('mine') // 'mine' | 'general' | 'team' | 'safety' | 'directory' | 'groups'
@@ -433,6 +445,8 @@ export default function Tracker({ user, onLogout }) {
   const [announcementDraft, setAnnouncementDraft] = useState('')
   const [postingAnnouncement, setPostingAnnouncement] = useState(false)
   const [groupUnread, setGroupUnread] = useState(0)
+  const [hazardUnseen, setHazardUnseen] = useState(0)
+  const [hazardToast, setHazardToast] = useState(null)
   const [focusedItemId, setFocusedItemId] = useState(null)
   const [form, setForm] = useState({
     title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team', severity: 'medium',
@@ -494,7 +508,34 @@ export default function Tracker({ user, onLogout }) {
     if (!error) setProfiles(data || [])
   }
 
-  useEffect(() => { loadItems(); loadAnnouncements(); loadProfiles() }, [])
+  useEffect(() => { loadItems(); loadProfiles() }, [])
+
+  useEffect(() => {
+    loadAnnouncements()
+    const interval = setInterval(loadAnnouncements, 7000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Detect newly-arrived hazard alerts: pop a toast (skipped on first load)
+  // and keep an "unseen" count that clears when the person opens General.
+  useEffect(() => {
+    const hazards = announcements.filter((a) => a.type === 'hazard_alert')
+    if (hazards.length === 0) return
+
+    const newest = hazards[0] // announcements are ordered newest-first
+    if (newest.id !== lastSeenHazardIdRef.current) {
+      if (lastSeenHazardIdRef.current !== null) {
+        setHazardToast(newest)
+        setTimeout(() => setHazardToast((t) => (t?.id === newest.id ? null : t)), 8000)
+      }
+      lastSeenHazardIdRef.current = newest.id
+    }
+
+    const lastViewedKey = `etch_general_last_viewed_${user?.id}`
+    const lastViewed = localStorage.getItem(lastViewedKey)
+    const unseen = hazards.filter((h) => !lastViewed || new Date(h.created_at) > new Date(lastViewed)).length
+    setHazardUnseen(unseen)
+  }, [announcements, user?.id])
 
   useEffect(() => {
     loadUnreadMessages()
@@ -502,7 +543,14 @@ export default function Tracker({ user, onLogout }) {
     return () => clearInterval(interval)
   }, [user?.id])
 
-  function goTo(key) { setNav(key); setMobileNavOpen(false) }
+  function goTo(key) {
+    setNav(key)
+    setMobileNavOpen(false)
+    if (key === 'general') {
+      localStorage.setItem(`etch_general_last_viewed_${user?.id}`, new Date().toISOString())
+      setHazardUnseen(0)
+    }
+  }
 
   async function handleCreate(e) {
     e.preventDefault()
@@ -1070,6 +1118,25 @@ export default function Tracker({ user, onLogout }) {
     <div className="min-h-screen flex bg-gradient-to-br from-[#F5F6F7] via-[#EFF1F2] to-[#E4E7EA] font-sans text-ink relative">        
       <WaferGrid />
 
+{hazardToast && (
+  <div className="fixed top-6 right-6 z-[60] max-w-sm">
+    <div className="bg-surface border-l-4 border-accent-red rounded-lg shadow-xl p-4 flex gap-3">
+      <span className="text-xl shrink-0">⚠️</span>
+      <div className="min-w-0 flex-1">
+        <p className="font-mono text-[10px] uppercase tracking-wider text-accent-red mb-0.5">Hazard Reported</p>
+        <p className="text-sm text-ink">{hazardToast.body}</p>
+        <button
+          onClick={() => { setNav('general'); setHazardToast(null) }}
+          className="text-xs font-medium text-accent-blue mt-1.5 hover:underline"
+        >
+          View in General →
+        </button>
+      </div>
+      <button onClick={() => setHazardToast(null)} className="text-ink-muted hover:text-ink shrink-0 text-sm">✕</button>
+    </div>
+  </div>
+)}
+
 {chatUser && (  
   <ChatModal 
     currentUser={user}
@@ -1119,7 +1186,18 @@ export default function Tracker({ user, onLogout }) {
           <p className="font-mono text-[10px] uppercase tracking-wider text-white/30 mb-2 px-3.5">Navigate</p>
           <nav className="space-y-1">
             {navItem('mine', 'My Tasks', <ClipboardIcon className="w-4 h-4" />)}
-            {navItem('general', 'General', <MegaphoneIcon className="w-4 h-4" />)}
+            {navItem(
+              'general',
+              <span className="flex items-center gap-2">
+                General
+                {hazardUnseen > 0 && (
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
+                    {hazardUnseen > 99 ? '99+' : hazardUnseen}
+                  </span>
+                )}
+              </span>,
+              <MegaphoneIcon className="w-4 h-4" />
+            )}
             {navItem('team', 'My Team', <TeamIcon className="w-4 h-4" />)}
             {navItem('safety', 'Safety at Site', <ShieldNavIcon className="w-4 h-4" />)}
             {navItem(
@@ -1271,7 +1349,7 @@ export default function Tracker({ user, onLogout }) {
                         ))}
                       </div>
                       <p className="font-mono text-[10px] text-ink-muted mt-2">
-                        The more you work with a team, the more you learn—and the more you grow.   
+                        Same-team people see this under "My Team". People from other teams see it under "My Tasks", and everyone added gets notified.
                       </p>
                     </div>
                   )}
@@ -1419,4 +1497,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}      
+}    

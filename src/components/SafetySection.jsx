@@ -255,6 +255,19 @@ export default function Safety({ user }) {
     setUploading(false)
     if (insertError) { setError(insertError.message); return }
 
+    // Broadcast the hazard into General so everyone sees it, gets a live
+    // toast, and an unread badge on the nav (handled in Tracker.jsx).
+    const { error: announceError } = await supabase.from('announcements').insert([{
+      author_id: user?.id,
+      author_name: user?.name || 'Unknown',
+      author_team: user?.team || null,
+      type: 'hazard_alert',
+      severity,
+      location: location.trim() || null,
+      body: `Safety hazard reported${location.trim() ? ` at ${location.trim()}` : ''}: ${description.trim()}`,
+    }])
+    if (announceError) console.error('hazard announcement failed:', announceError.message)
+
     setFile(null)
     setDescription('')
     setLocation('')
@@ -502,4 +515,4 @@ export default function Safety({ user }) {
       )}
     </div>
   )
-}   
+}       
