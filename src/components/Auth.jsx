@@ -351,7 +351,7 @@ export default function Auth({ onAuthenticated, onBack }) {
           <div className="mt-10 flex items-center gap-3">
             <WaferBadge size={44} spinning={loading} accent={flow.accent} />
             <p className="font-mono text-[10px] uppercase tracking-wider text-white/30 leading-relaxed">
-              MADE IN INDIA <br /> DHOLERA  · {screen === 'choice' ? 'Idle' : loading ? 'Verifying' : 'Awaiting Input'}
+              MADE IN INDIA <br /> DHOLERA  · {screen === 'choice' ? 'GUJRAT' : loading ? 'Verifying' : 'Awaiting Input'}   
             </p>
           </div>
 
