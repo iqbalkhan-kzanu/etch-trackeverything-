@@ -482,12 +482,12 @@ export default function Tracker({ user, onLogout }) {
     if (!error) setUnreadMessages(count || 0)
   }
 
-  async function loadAnnouncements() {
-    setLoadingAnnouncements(true)
+  async function loadAnnouncements({ silent = false } = {}) {
+    if (!silent) setLoadingAnnouncements(true)
     const { data, error } = await supabase.from('announcements').select('*').order('created_at', { ascending: false })
     if (!error) setAnnouncements(data || [])
-    setLoadingAnnouncements(false)
-  }
+    if (!silent) setLoadingAnnouncements(false)
+  }    
 
   async function handlePostAnnouncement(e) {
     e.preventDefault()
@@ -512,9 +512,9 @@ export default function Tracker({ user, onLogout }) {
 
   useEffect(() => {
     loadAnnouncements()
-    const interval = setInterval(loadAnnouncements, 7000)
+    const interval = setInterval(() => loadAnnouncements({ silent: true }), 7000)
     return () => clearInterval(interval)
-  }, [])
+  }, [])     
 
   // Detect newly-arrived hazard alerts: pop a toast (skipped on first load)
   // and keep an "unseen" count that clears when the person opens General.
