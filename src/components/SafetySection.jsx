@@ -7,7 +7,10 @@ const SEVERITIES = [
   { label: 'High', color: '#C1443C' },
   { label: 'Critical', color: '#8B1E1E' },
 ]
+const NEAR_MISS_CATEGORIES = ['Electrical', 'Mechanical', 'Chemical', 'Ergonomic', 'Procedural', 'Other']
+const SEVERITY_WEIGHT = { Low: 1, Medium: 2, High: 3, Critical: 4 }
 const MENTOR_COLOR = '#7C5CBF'
+const NEAR_MISS_COLOR = '#D98C2B'
 const EHS_PASSWORD = 'An@1406'
 
 function severityColor(label) {
@@ -53,6 +56,25 @@ async function callGemini(promptText, blob) {
   return JSON.parse(cleaned)
 }
 
+// Text-only variant — near misses often don't have a photo, so classification
+// runs off the written description instead of an image.
+async function callGeminiText(promptText) {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY
+  if (!apiKey) throw new Error('AI key not configured')
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] }),
+    }
+  )
+  const data = await res.json()
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+  const cleaned = text.replace(/```json|```/g, '').trim()
+  return JSON.parse(cleaned)
+}
+
 async function analyzeHazardFromUrl(photoUrl) {
   const imgRes = await fetch(photoUrl)
   const blob = await imgRes.blob()
@@ -67,10 +89,28 @@ async function assessAreaSafety(file) {
   return callGemini(prompt, file)
 }
 
+async function classifyNearMiss(description, category, potentialSeverity, location) {
+  const prompt = `You are a workplace safety analyst at a semiconductor fab, doing near-miss analysis (an event that almost caused an incident, but didn't). Here is a near-miss report:
+Description: "${description}"
+Reported category: ${category}
+Reported potential severity: ${potentialSeverity}
+Location: ${location || 'not specified'}
+
+Analyze it and respond ONLY with valid JSON, no markdown fences, no extra text, in exactly this format:
+{"category": "Electrical|Mechanical|Chemical|Ergonomic|Procedural|Other", "risk_score": <integer 0-100, how likely this becomes a real incident if unaddressed>, "measures": ["<short corrective action 1>", "<short action 2>", "<short action 3>"]}`
+  return callGeminiText(prompt)
+}
+
 function scoreColor(score) {
   if (score >= 80) return '#2F8F5B'
   if (score >= 50) return '#D98C2B'
   return '#C1443C'
+}
+
+function riskColor(score) {
+  if (score >= 66) return '#C1443C'
+  if (score >= 33) return '#D98C2B'
+  return '#2F8F5B'
 }
 
 function statusColor(status) {
@@ -184,6 +224,60 @@ function HazardCard({ r, onLightbox, onAiClick, aiOpen, isAnalyzing, onResolveCl
   )
 }
 
+function NearMissCard({ nm, onLightbox, onAiClick, aiOpen, isAnalyzing }) {
+  let measures = []
+  try { measures = nm.ai_measures ? JSON.parse(nm.ai_measures) : [] } catch { measures = [] }
+
+  return (
+    <div className="bg-surface border border-line rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+      {nm.photo_url && (
+        <div className="relative cursor-pointer" onClick={() => onLightbox(nm.photo_url)}>
+          <img src={nm.photo_url} alt="Near miss" className="w-full h-32 object-cover" />
+        </div>
+      )}
+      <div className="p-4">
+        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+          <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded text-white" style={{ backgroundColor: NEAR_MISS_COLOR }}>
+            {nm.category}
+          </span>
+          <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded" style={{ backgroundColor: `${severityColor(nm.potential_severity)}15`, color: severityColor(nm.potential_severity) }}>
+            Potential: {nm.potential_severity}
+          </span>
+          {nm.ai_analyzed && nm.ai_risk_score != null && (
+            <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded" style={{ backgroundColor: `${riskColor(nm.ai_risk_score)}15`, color: riskColor(nm.ai_risk_score) }}>
+              Risk: {nm.ai_risk_score}
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-ink">{nm.description}</p>
+        {nm.location && <p className="text-xs text-ink-muted mt-1">📍 {nm.location}</p>}
+        <p className="font-mono text-[11px] text-ink-muted mt-2">
+          {nm.reported_by} {nm.team && `· ${nm.team}`} · {formatTime(nm.created_at)}
+        </p>
+
+        <button
+          onClick={() => onAiClick(nm)}
+          className="mt-3 w-full text-xs font-mono uppercase tracking-wider px-3 py-2 rounded-md border transition-colors"
+          style={{ borderColor: MENTOR_COLOR, color: MENTOR_COLOR, backgroundColor: aiOpen ? `${MENTOR_COLOR}15` : 'transparent' }}
+        >
+          {isAnalyzing ? 'Analyzing…' : aiOpen ? 'Hide AI Analysis' : 'AI Risk Analysis'}
+        </button>
+
+        {aiOpen && !isAnalyzing && nm.ai_analyzed && (
+          <div className="mt-2 rounded-lg p-3" style={{ backgroundColor: `${MENTOR_COLOR}0D`, border: `1px solid ${MENTOR_COLOR}40` }}>
+            <p className="font-mono text-[10px] uppercase tracking-wider mb-1" style={{ color: MENTOR_COLOR }}>Corrective Actions</p>
+            {measures.length > 0 && (
+              <ul className="text-xs text-ink-muted list-disc pl-4 space-y-0.5">
+                {measures.map((m, i) => <li key={i}>{m}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function CategoryTile({ label, status, note }) {
   return (
     <div className="border border-line rounded-lg p-3">
@@ -196,10 +290,121 @@ function CategoryTile({ label, status, note }) {
   )
 }
 
+// Simple horizontal-bar row, used by the Analysis tab — no chart library,
+// just a colored div scaled to a percentage of the row's max value.
+function BarRow({ label, value, max, color, suffix = '' }) {
+  const pct = max > 0 ? Math.max((value / max) * 100, value > 0 ? 4 : 0) : 0
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-sm text-ink truncate">{label}</span>
+        <span className="font-mono text-xs text-ink-muted shrink-0 ml-2">{value}{suffix}</span>
+      </div>
+      <div className="h-2 rounded-full bg-line overflow-hidden">
+        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+      </div>
+    </div>
+  )
+}
+
+function AnalysisTab({ reports, nearMisses, loading }) {
+  if (loading) return <p className="text-ink-muted font-mono text-sm">Loading…</p>
+
+  // Combine hazards + near-misses per location into a single risk picture.
+  // Risk score = sum of hazard severity weights + sum of near-miss risk
+  // contributions (using AI risk_score/25 as a rough severity-equivalent,
+  // or 1 point if not yet AI-analyzed).
+  const locationMap = {}
+  function bump(locationRaw, weight, kind) {
+    const key = (locationRaw || 'Unspecified').trim() || 'Unspecified'
+    if (!locationMap[key]) locationMap[key] = { location: key, hazards: 0, nearMisses: 0, riskScore: 0 }
+    locationMap[key][kind] += 1
+    locationMap[key].riskScore += weight
+  }
+  reports.forEach((r) => bump(r.location, SEVERITY_WEIGHT[r.severity] || 1, 'hazards'))
+  nearMisses.forEach((nm) => {
+    const weight = nm.ai_analyzed && nm.ai_risk_score != null ? nm.ai_risk_score / 25 : (SEVERITY_WEIGHT[nm.potential_severity] || 1)
+    bump(nm.location, weight, 'nearMisses')
+  })
+
+  const locationStats = Object.values(locationMap).sort((a, b) => b.riskScore - a.riskScore)
+  const maxRisk = locationStats.length > 0 ? locationStats[0].riskScore : 0
+  const hotSpots = locationStats.filter((l) => l.hazards + l.nearMisses >= 3 || l.riskScore >= 6)
+
+  const categoryMap = {}
+  nearMisses.forEach((nm) => {
+    const cat = nm.ai_analyzed && nm.ai_category ? nm.ai_category : nm.category
+    categoryMap[cat] = (categoryMap[cat] || 0) + 1
+  })
+  const categoryStats = Object.entries(categoryMap).sort((a, b) => b[1] - a[1])
+  const maxCategory = categoryStats.length > 0 ? categoryStats[0][1] : 0
+
+  const totalIncidents = reports.length + nearMisses.length
+
+  if (totalIncidents === 0) {
+    return (
+      <div className="border border-dashed border-line rounded-xl p-10 text-center bg-surface">
+        <p className="text-ink font-medium">Nothing to analyze yet.</p>
+        <p className="text-ink-muted text-sm mt-1">Once hazards and near misses are logged, trends and hot spots will show up here.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {hotSpots.length > 0 && (
+        <div className="bg-surface border border-line rounded-xl p-5 shadow-sm" style={{ borderLeft: '4px solid #C1443C' }}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">🔥</span>
+            <h3 className="text-base font-semibold text-ink">Hot Spots</h3>
+          </div>
+          <p className="text-sm text-ink-muted mb-3">Locations with repeated hazards or near misses — worth a closer look before something more serious happens.</p>
+          <div className="space-y-2">
+            {hotSpots.map((l) => (
+              <div key={l.location} className="flex items-center justify-between rounded-lg px-3 py-2 bg-accent-red/5">
+                <div>
+                  <p className="text-sm font-medium text-ink">{l.location}</p>
+                  <p className="font-mono text-[11px] text-ink-muted">{l.hazards} hazard{l.hazards === 1 ? '' : 's'} · {l.nearMisses} near miss{l.nearMisses === 1 ? '' : 'es'}</p>
+                </div>
+                <span className="font-mono text-xs font-bold px-2 py-1 rounded" style={{ backgroundColor: `${riskColor(l.riskScore * 10)}15`, color: riskColor(l.riskScore * 10) }}>
+                  Risk {l.riskScore.toFixed(1)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+        <h3 className="text-base font-semibold text-ink mb-1">Risk by Location</h3>
+        <p className="text-sm text-ink-muted mb-4">Combined score from hazard severity and near-miss risk, highest first.</p>
+        <div className="space-y-3">
+          {locationStats.slice(0, 10).map((l) => (
+            <BarRow key={l.location} label={l.location} value={Number(l.riskScore.toFixed(1))} max={maxRisk} color={riskColor(l.riskScore * 10)} />
+          ))}
+        </div>
+      </div>
+
+      {categoryStats.length > 0 && (
+        <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+          <h3 className="text-base font-semibold text-ink mb-1">Near Misses by Category</h3>
+          <p className="text-sm text-ink-muted mb-4">Where the near-miss reports are clustering.</p>
+          <div className="space-y-3">
+            {categoryStats.map(([cat, count]) => (
+              <BarRow key={cat} label={cat} value={count} max={maxCategory} color={NEAR_MISS_COLOR} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Safety({ user }) {
   const [tab, setTab] = useState('ongoing')
   const [reports, setReports] = useState([])
   const [scores, setScores] = useState([])
+  const [nearMisses, setNearMisses] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -218,14 +423,27 @@ export default function Safety({ user }) {
   const [assessing, setAssessing] = useState(false)
   const [scoreError, setScoreError] = useState('')
 
+  const [showNearMissForm, setShowNearMissForm] = useState(false)
+  const [nmDescription, setNmDescription] = useState('')
+  const [nmLocation, setNmLocation] = useState('')
+  const [nmCategory, setNmCategory] = useState('Other')
+  const [nmSeverity, setNmSeverity] = useState('Medium')
+  const [nmFile, setNmFile] = useState(null)
+  const [nmSubmitting, setNmSubmitting] = useState(false)
+  const [nmError, setNmError] = useState('')
+  const [nmAiOpen, setNmAiOpen] = useState({})
+  const [nmAnalyzingId, setNmAnalyzingId] = useState(null)
+
   async function loadAll() {
     setLoading(true)
-    const [{ data: reportData }, { data: scoreData }] = await Promise.all([
+    const [{ data: reportData }, { data: scoreData }, { data: nearMissData }] = await Promise.all([
       supabase.from('safety_reports').select('*').order('created_at', { ascending: false }),
       supabase.from('safety_scores').select('*').order('created_at', { ascending: false }),
+      supabase.from('near_misses').select('*').order('created_at', { ascending: false }),
     ])
     setReports(reportData || [])
     setScores(scoreData || [])
+    setNearMisses(nearMissData || [])
     setLoading(false)
   }
 
@@ -342,6 +560,61 @@ export default function Safety({ user }) {
     setAssessing(false)
   }
 
+  async function handleNearMissSubmit(e) {
+    e.preventDefault()
+    setNmError('')
+    if (!nmDescription.trim()) { setNmError('Describe what happened.'); return }
+    setNmSubmitting(true)
+
+    let photoUrl = null
+    if (nmFile) {
+      const path = `${Date.now()}-${nmFile.name.replace(/\s+/g, '-')}`
+      const { error: uploadError } = await supabase.storage.from('safety-photos').upload(path, nmFile)
+      if (uploadError) { setNmError(uploadError.message); setNmSubmitting(false); return }
+      const { data: urlData } = supabase.storage.from('safety-photos').getPublicUrl(path)
+      photoUrl = urlData.publicUrl
+    }
+
+    const { error: insertError } = await supabase.from('near_misses').insert([{
+      description: nmDescription.trim(),
+      location: nmLocation.trim(),
+      category: nmCategory,
+      potential_severity: nmSeverity,
+      photo_url: photoUrl,
+      reported_by: user?.name || 'Unknown',
+      team: user?.team || '',
+    }])
+    setNmSubmitting(false)
+    if (insertError) { setNmError(insertError.message); return }
+
+    setNmDescription('')
+    setNmLocation('')
+    setNmCategory('Other')
+    setNmSeverity('Medium')
+    setNmFile(null)
+    setShowNearMissForm(false)
+    loadAll()
+  }
+
+  async function handleNearMissAiClick(nm) {
+    setNmAiOpen((prev) => ({ ...prev, [nm.id]: !prev[nm.id] }))
+    if (nm.ai_analyzed) return
+    setNmAnalyzingId(nm.id)
+    try {
+      const result = await classifyNearMiss(nm.description, nm.category, nm.potential_severity, nm.location)
+      await supabase.from('near_misses').update({
+        ai_category: result.category,
+        ai_risk_score: result.risk_score,
+        ai_measures: JSON.stringify(result.measures || []),
+        ai_analyzed: true,
+      }).eq('id', nm.id)
+      loadAll()
+    } catch (err) {
+      setNmError('AI analysis failed — try again in a moment.')
+    }
+    setNmAnalyzingId(null)
+  }
+
   const openReports = reports.filter((r) => r.status === 'open')
   const resolvedReports = reports.filter((r) => r.status === 'resolved')
 
@@ -369,7 +642,7 @@ export default function Safety({ user }) {
 
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <h2 className="text-xl font-semibold text-ink">Safety at Site</h2>
-        {tab !== 'score' && (
+        {(tab === 'ongoing' || tab === 'resolved') && (
           <button
             onClick={() => setShowForm((s) => !s)}
             className="bg-accent-red text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-red/90 transition-colors"
@@ -377,15 +650,26 @@ export default function Safety({ user }) {
             {showForm ? 'Cancel' : '+ Report Hazard'}
           </button>
         )}
+        {tab === 'nearmiss' && (
+          <button
+            onClick={() => setShowNearMissForm((s) => !s)}
+            className="text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm transition-colors"
+            style={{ backgroundColor: NEAR_MISS_COLOR }}
+          >
+            {showNearMissForm ? 'Cancel' : '+ Report Near Miss'}
+          </button>
+        )}
       </div>
 
       <div className="flex gap-2 mb-6 flex-wrap">
         {tabBtn('ongoing', 'Ongoing Hazards', openReports.length)}
         {tabBtn('resolved', 'Resolved', resolvedReports.length)}
+        {tabBtn('nearmiss', 'Near Misses', nearMisses.length)}
+        {tabBtn('analysis', 'Analysis')}
         {tabBtn('score', 'Area Safety Score')}
       </div>
 
-      {tab !== 'score' && showForm && (
+      {(tab === 'ongoing' || tab === 'resolved') && showForm && (
         <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-xl p-6 mb-6 shadow-sm space-y-4">
           <div>
             <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Photo of the hazard</label>
@@ -413,6 +697,51 @@ export default function Safety({ user }) {
           {error && <p className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-md px-3 py-2">{error}</p>}
           <button type="submit" disabled={uploading} className="w-full bg-accent-red text-white rounded-md p-2.5 font-medium hover:bg-accent-red/90 transition-colors disabled:opacity-60">
             {uploading ? 'Uploading…' : 'Submit Report'}
+          </button>
+        </form>
+      )}
+
+      {tab === 'nearmiss' && showNearMissForm && (
+        <form onSubmit={handleNearMissSubmit} className="bg-surface border border-line rounded-xl p-6 mb-6 shadow-sm space-y-4">
+          <p className="text-sm text-ink-muted">
+            A near miss is something that almost caused an incident but didn't — reporting these helps catch risks before they become real ones.
+          </p>
+          <div>
+            <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">What happened?</label>
+            <textarea required rows={3} className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:border-line"
+              style={{ '--tw-ring-color': `${NEAR_MISS_COLOR}66` }}
+              placeholder="e.g. A cart nearly rolled into a walkway when its brake wasn't set" value={nmDescription} onChange={(e) => setNmDescription(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Location / Area</label>
+              <input className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2"
+                placeholder="e.g. Bay 3, near loading dock" value={nmLocation} onChange={(e) => setNmLocation(e.target.value)} />
+            </div>
+            <div>
+              <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Category</label>
+              <select className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2"
+                value={nmCategory} onChange={(e) => setNmCategory(e.target.value)}>
+                {NEAR_MISS_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Potential Severity (if it had occurred)</label>
+              <select className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2"
+                value={nmSeverity} onChange={(e) => setNmSeverity(e.target.value)}>
+                {SEVERITIES.map((s) => <option key={s.label} value={s.label}>{s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Photo (optional)</label>
+              <input type="file" accept="image/*" className="w-full border border-line rounded-md p-2.5 mt-1 bg-canvas text-sm" onChange={(e) => setNmFile(e.target.files[0])} />
+            </div>
+          </div>
+          {nmError && <p className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-md px-3 py-2">{nmError}</p>}
+          <button type="submit" disabled={nmSubmitting} className="w-full text-white rounded-md p-2.5 font-medium transition-colors disabled:opacity-60" style={{ backgroundColor: NEAR_MISS_COLOR }}>
+            {nmSubmitting ? 'Submitting…' : 'Submit Near Miss'}
           </button>
         </form>
       )}
@@ -446,6 +775,26 @@ export default function Safety({ user }) {
             ))}
           </div>
         )
+      )}
+
+      {tab === 'nearmiss' && (
+        loading ? <p className="text-ink-muted font-mono text-sm">Loading…</p> :
+        nearMisses.length === 0 ? (
+          <div className="border border-dashed border-line rounded-xl p-10 text-center bg-surface">
+            <p className="text-ink font-medium">No near misses logged yet.</p>
+            <p className="text-ink-muted text-sm mt-1">Report anything that almost went wrong — it's the earliest signal you'll get.</p>
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {nearMisses.map((nm) => (
+              <NearMissCard key={nm.id} nm={nm} onLightbox={setLightbox} onAiClick={handleNearMissAiClick} aiOpen={!!nmAiOpen[nm.id]} isAnalyzing={nmAnalyzingId === nm.id} />
+            ))}
+          </div>
+        )
+      )}
+
+      {tab === 'analysis' && (
+        <AnalysisTab reports={reports} nearMisses={nearMisses} loading={loading} />
       )}
 
       {tab === 'score' && (
@@ -515,4 +864,4 @@ export default function Safety({ user }) {
       )}
     </div>
   )
-}       
+}     
