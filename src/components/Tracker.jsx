@@ -848,6 +848,28 @@ export default function Tracker({ user, onLogout }) {
     return true
   })
 
+  // Sidebar "Tasks Overview" is always scoped to the current user's own
+  // tasks (owned by them, or a cross-team task they're a participant on) —
+  // it must NOT change when switching between My Tasks / My Team / General
+  // / Directory, otherwise the sidebar count contradicts the section
+  // you're looking at. This is intentionally separate from `scopedItems`,
+  // which drives the in-page stat cards and DOES change per nav tab.
+  const myItems = items.filter((i) => {
+    const participants = Array.isArray(i.participants) ? i.participants : []
+    const isCrossTeamParticipant = participants.some((p) => p.id === user?.id && p.team !== i.team)
+    return i.owner_name === user?.name || isCrossTeamParticipant
+  })
+  const myCounts = {
+    open: myItems.filter((i) => i.status === 'open').length,
+    in_progress: myItems.filter((i) => i.status === 'in_progress').length,
+    ready_to_close: myItems.filter((i) => i.status === 'ready_to_close').length,
+    pending_approval: myItems.filter((i) => i.status === 'pending_approval').length,
+    closed: myItems.filter((i) => i.status === 'closed').length,
+    overdue: myItems.filter(isOverdue).length,
+    critical: myItems.filter((i) => i.status !== 'closed' && i.severity === 'critical').length,
+  }
+  const myTotal = myItems.length
+
   const filtered = scopedItems.filter((i) => {
     if (filterStatus !== 'all' && i.status !== filterStatus) return false
     if (filterSeverity !== 'all' && i.severity !== filterSeverity) return false
@@ -1243,7 +1265,7 @@ export default function Tracker({ user, onLogout }) {
           </nav>
 
           <div className="mt-6">
-            <TasksOverviewCard counts={counts} total={totalScoped} />
+            <TasksOverviewCard counts={myCounts} total={myTotal} />
           </div>
         </div>
         <div className="border-t border-white/10 pt-4">
