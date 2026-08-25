@@ -162,7 +162,7 @@ export default function SemiconductorPulse() {
         <div className="relative z-10 flex-1">
           <div className="flex items-center gap-2 mb-3">
             <span className="w-1.5 h-1.5 rounded-full bg-accent-blue animate-pulse" />
-            <p className="font-mono text-xs uppercase tracking-[0.15em] text-accent-blue">Industry Pulse</p>
+            <p className="font-mono text-xs uppercase tracking-[0.15em] text-accent-blue">Wafer is the bitcoin of 2026 </p>    
           </div>
           <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
             What's up <span className="text-white/50 font-normal">Semicon</span>

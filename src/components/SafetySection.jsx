@@ -172,18 +172,46 @@ function HazardCard({ r, onLightbox, onAiClick, aiOpen, isAnalyzing, onResolveCl
 
   return (
     <div className="bg-surface border border-line rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-      <div className="relative cursor-pointer" onClick={() => onLightbox(r.photo_url)}>
-        <img src={r.photo_url} alt="Hazard" className="w-full h-40 object-cover" />
-        <span className="absolute top-2 left-2 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded text-white" style={{ backgroundColor: severityColor(r.severity) }}>
-          {r.severity}
-        </span>
-        {r.status === 'resolved' && (
-          <span className="absolute top-2 right-2 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-green text-white">Resolved</span>
-        )}
-      </div>
+      {r.action_photo_url ? (
+        <div className="grid grid-cols-2 gap-0.5">
+          <div className="relative cursor-pointer" onClick={() => onLightbox(r.photo_url)}>
+            <img src={r.photo_url} alt="Hazard" className="w-full h-40 object-cover" />
+            <span className="absolute top-2 left-2 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded text-white" style={{ backgroundColor: severityColor(r.severity) }}>
+              {r.severity}
+            </span>
+            {r.status === 'resolved' && (
+              <span className="absolute top-2 right-2 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-green text-white">Resolved</span>
+            )}
+          </div>
+          <div className="relative cursor-pointer" onClick={() => onLightbox(r.action_photo_url)}>
+            <img src={r.action_photo_url} alt="Action taken" className="w-full h-40 object-cover" />
+            <span className="absolute top-2 left-2 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded text-white bg-accent-green">
+              Action Taken
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="relative cursor-pointer" onClick={() => onLightbox(r.photo_url)}>
+          <img src={r.photo_url} alt="Hazard" className="w-full h-40 object-cover" />
+          <span className="absolute top-2 left-2 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded text-white" style={{ backgroundColor: severityColor(r.severity) }}>
+            {r.severity}
+          </span>
+          {r.status === 'resolved' && (
+            <span className="absolute top-2 right-2 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-green text-white">Resolved</span>
+          )}
+        </div>
+      )}
       <div className="p-4">
         <p className="text-sm text-ink">{r.description}</p>
         {r.location && <p className="text-xs text-ink-muted mt-1">📍 {r.location}</p>}
+
+        {r.action_taken && (
+          <div className="mt-2 rounded-lg p-2.5 bg-accent-green/10 border border-accent-green/30">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-accent-green mb-0.5">Immediate Action Taken</p>
+            <p className="text-sm text-ink">{r.action_taken}</p>
+          </div>
+        )}
+
         <p className="font-mono text-[11px] text-ink-muted mt-2">
           {r.reported_by} {r.team && `· ${r.team}`} · {formatTime(r.created_at)}
         </p>
@@ -413,6 +441,8 @@ export default function Safety({ user }) {
   const [description, setDescription] = useState('')
   const [location, setLocation] = useState('')
   const [severity, setSeverity] = useState('Medium')
+  const [actionTaken, setActionTaken] = useState('')
+  const [actionFile, setActionFile] = useState(null)
   const [lightbox, setLightbox] = useState(null)
   const [aiOpen, setAiOpen] = useState({})
   const [analyzingId, setAnalyzingId] = useState(null)
@@ -459,14 +489,25 @@ export default function Safety({ user }) {
     const path = `${Date.now()}-${file.name.replace(/\s+/g, '-')}`
     const { error: uploadError } = await supabase.storage.from('safety-photos').upload(path, file)
     if (uploadError) { setError(uploadError.message); setUploading(false); return }
-
     const { data: urlData } = supabase.storage.from('safety-photos').getPublicUrl(path)
+
+    // Immediate action photo is optional — only upload if provided.
+    let actionPhotoUrl = null
+    if (actionFile) {
+      const actionPath = `${Date.now()}-action-${actionFile.name.replace(/\s+/g, '-')}`
+      const { error: actionUploadError } = await supabase.storage.from('safety-photos').upload(actionPath, actionFile)
+      if (actionUploadError) { setError(actionUploadError.message); setUploading(false); return }
+      const { data: actionUrlData } = supabase.storage.from('safety-photos').getPublicUrl(actionPath)
+      actionPhotoUrl = actionUrlData.publicUrl
+    }
 
     const { error: insertError } = await supabase.from('safety_reports').insert([{
       photo_url: urlData.publicUrl,
       description: description.trim(),
       location: location.trim(),
       severity,
+      action_taken: actionTaken.trim() || null,
+      action_photo_url: actionPhotoUrl,
       reported_by: user?.name || 'Unknown',
       team: user?.team || '',
     }])
@@ -490,6 +531,8 @@ export default function Safety({ user }) {
     setDescription('')
     setLocation('')
     setSeverity('Medium')
+    setActionTaken('')
+    setActionFile(null)
     setShowForm(false)
     loadAll()
   }
@@ -694,6 +737,22 @@ export default function Safety({ user }) {
               </select>
             </div>
           </div>
+
+          <div className="pt-2 border-t border-line">
+            <p className="font-mono text-[11px] uppercase tracking-wider text-accent-green mb-3">Immediate Action Taken (optional)</p>
+            <div className="space-y-4">
+              <div>
+                <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">What did you do about it?</label>
+                <textarea rows={2} className="w-full border border-line rounded-md p-2.5 mt-1 focus:outline-none focus:ring-2 focus:ring-accent-green/40 focus:border-accent-green"
+                  placeholder="e.g. Cordoned off the area and switched off the breaker" value={actionTaken} onChange={(e) => setActionTaken(e.target.value)} />
+              </div>
+              <div>
+                <label className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Photo of action taken</label>
+                <input type="file" accept="image/*" className="w-full border border-line rounded-md p-2.5 mt-1 bg-canvas text-sm" onChange={(e) => setActionFile(e.target.files[0])} />
+              </div>
+            </div>
+          </div>
+
           {error && <p className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-md px-3 py-2">{error}</p>}
           <button type="submit" disabled={uploading} className="w-full bg-accent-red text-white rounded-md p-2.5 font-medium hover:bg-accent-red/90 transition-colors disabled:opacity-60">
             {uploading ? 'Uploading…' : 'Submit Report'}
