@@ -26,6 +26,8 @@ const STATUS_STYLES = {
   closed: { bar: 'bg-accent-green', badge: 'bg-accent-green/10 text-accent-green', top: '#2F8F5B' },
 }
 const MENTOR_COLOR = '#7C5CBF'
+const MENTOR_DARK = '#4A3572'
+const STUCK_DARK = '#7A4E14'
 const ACTION_META = {
   created: { label: 'Logged', color: '#5C6670' },
   advanced_to_in_progress: { label: 'Started progress', color: '#2B6CB0' },
@@ -86,6 +88,12 @@ function nextActionLabel(status) {
   return null
 }
 
+function nextActionMeta(status) {
+  if (status === 'open') return { next: 'in_progress', actionKey: 'advanced_to_in_progress' }
+  if (status === 'in_progress') return { next: 'ready_to_close', actionKey: 'advanced_to_ready_to_close' }
+  return null
+}
+
 function formatTime(ts) {
   const d = new Date(ts)
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -142,6 +150,8 @@ function Timeline({ entries }) {
       {entries.map((e, i) => {
         const meta = ACTION_META[e.action] || { label: e.action, color: '#5C6670' }
         const isLast = i === entries.length - 1
+        let files = []
+        try { files = e.files ? (typeof e.files === 'string' ? JSON.parse(e.files) : e.files) : [] } catch { files = [] }
         return (
           <div key={e.id} className="relative pl-6 pb-4 last:pb-0">
             {!isLast && <div className="absolute left-[5px] top-3 bottom-0 w-px bg-line" />}
@@ -149,6 +159,16 @@ function Timeline({ entries }) {
             <p className="text-sm font-medium text-ink">{meta.label}</p>
             <p className="font-mono text-[11px] text-ink-muted mt-0.5">{e.actor} · {formatTime(e.created_at)}</p>
             {e.note && <p className="text-xs text-ink-muted mt-1 italic">"{e.note}"</p>}
+            {files.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {files.map((f, fi) => (
+                  <a key={fi} href={f.url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-[10px] font-mono bg-line/60 text-ink-muted hover:text-accent-blue rounded px-1.5 py-0.5 transition-colors">
+                    📎 <span className="truncate max-w-[100px]">{f.name}</span>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         )
       })}
@@ -322,6 +342,9 @@ function GroupsNavIcon({ className }) {
 function NewsIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 8h10M7 12h10M7 16h6" /></svg>)
 }
+function PaperclipIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05 12.25 20.24a5 5 0 0 1-7.07-7.07l8.49-8.49a3.5 3.5 0 0 1 4.95 4.95l-8.49 8.49a2 2 0 0 1-2.83-2.83l7.78-7.78" /></svg>)
+}
 
 function ClockStatIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></svg>)
@@ -407,6 +430,53 @@ function TasksOverviewCard({ counts, total }) {
   )
 }
 
+// Compact, collapsed-by-default note + attachment panel used when advancing
+// an item's stage. Nothing is shown until the stage button is clicked; then
+// a small textarea + attach icon appear, and Confirm performs the actual
+// status change along with the optional note/files.
+function StageNotePanel({ label, note, onNoteChange, files, onAddFiles, onRemoveFile, onCancel, onConfirm, submitting }) {
+  return (
+    <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: '#14181C0A', border: '1px solid #14181C22' }}>
+      <div className="flex items-center justify-between mb-2">
+        <p className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">{label} — optional note</p>
+        <label className="cursor-pointer w-6 h-6 rounded-md border border-line flex items-center justify-center text-ink-muted hover:text-accent-blue hover:border-accent-blue transition-colors shrink-0" title="Attach files">
+          <PaperclipIcon className="w-3.5 h-3.5" />
+          <input type="file" multiple className="hidden" onChange={(e) => onAddFiles(Array.from(e.target.files || []))} />
+        </label>
+      </div>
+      <textarea
+        autoFocus
+        rows={1}
+        placeholder="Add a short note (optional)…"
+        className="w-full bg-surface border border-line rounded-md p-2 text-sm resize-none focus:outline-none focus:ring-2"
+        value={note}
+        onChange={(e) => onNoteChange(e.target.value)}
+      />
+      {files.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {files.map((f, i) => (
+            <span key={i} className="flex items-center gap-1 text-[10px] font-mono bg-line/60 text-ink-muted rounded px-1.5 py-0.5">
+              📎 <span className="truncate max-w-[100px]">{f.name}</span>
+              <button type="button" onClick={() => onRemoveFile(i)} className="text-ink-muted hover:text-accent-red ml-0.5">✕</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2 mt-2 justify-end">
+        <button onClick={onCancel} className="text-xs px-3 py-1.5 rounded-md text-ink-muted hover:text-ink">Cancel</button>
+        <button
+          onClick={onConfirm}
+          disabled={submitting}
+          className="text-xs px-3 py-1.5 rounded-md text-white font-medium disabled:opacity-60"
+          style={{ backgroundColor: '#14181C' }}
+        >
+          {submitting ? 'Saving…' : 'Confirm'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Tracker({ user, onLogout }) {
   const [items, setItems] = useState([])
   const [activity, setActivity] = useState({})
@@ -446,6 +516,12 @@ export default function Tracker({ user, onLogout }) {
   })
   const [taskType, setTaskType] = useState('personal')
   const [selectedParticipantIds, setSelectedParticipantIds] = useState([])
+
+  // Stage-advance compact note/attachment panel state
+  const [stagePanelItemId, setStagePanelItemId] = useState(null)
+  const [stageNote, setStageNote] = useState('')
+  const [stageFiles, setStageFiles] = useState([])
+  const [stageSubmitting, setStageSubmitting] = useState(false)
 
   async function loadItems() {
     setLoading(true)
@@ -617,16 +693,59 @@ export default function Tracker({ user, onLogout }) {
     loadItems()
   }
 
-  async function advanceStatus(item) {
-    let next = item.status
-    let actionKey = null
-    if (item.status === 'open') { next = 'in_progress'; actionKey = 'advanced_to_in_progress' }
-    else if (item.status === 'in_progress') { next = 'ready_to_close'; actionKey = 'advanced_to_ready_to_close' }
-    else return
-    const { error } = await supabase.from('action_items').update({ status: next }).eq('id', item.id)
-    if (error) { setError(error.message); return }
-    await supabase.from('item_activity').insert([{ item_id: item.id, actor: user?.name || 'Unknown', action: actionKey }])
-    loadItems()
+  // Opens the compact note/attachment panel for a stage-advance action,
+  // instead of firing the transition immediately.
+  function openStagePanel(itemId) {
+    if (stagePanelItemId === itemId) {
+      setStagePanelItemId(null)
+      return
+    }
+    setStagePanelItemId(itemId)
+    setStageNote('')
+    setStageFiles([])
+  }
+
+  function addStageFiles(newFiles) {
+    setStageFiles((prev) => [...prev, ...newFiles])
+  }
+
+  function removeStageFile(idx) {
+    setStageFiles((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  // Confirms a stage transition (open->in_progress or in_progress->ready_to_close),
+  // uploading any attached files and recording the note + files on the timeline.
+  async function confirmStageAdvance(item) {
+    const meta = nextActionMeta(item.status)
+    if (!meta) return
+    setStageSubmitting(true)
+
+    try {
+      let uploadedFiles = []
+      for (const file of stageFiles) {
+        const path = `${item.id}/stage/${Date.now()}-${file.name}`
+        const { error: uploadError } = await supabase.storage.from('attachments').upload(path, file)
+        if (uploadError) throw uploadError
+        const { data: publicUrlData } = supabase.storage.from('attachments').getPublicUrl(path)
+        uploadedFiles.push({ name: file.name, url: publicUrlData.publicUrl })
+      }
+
+      const { error } = await supabase.from('action_items').update({ status: meta.next }).eq('id', item.id)
+      if (error) throw error
+
+      await supabase.from('item_activity').insert([{
+        item_id: item.id, actor: user?.name || 'Unknown', action: meta.actionKey,
+        note: stageNote.trim() || null, files: uploadedFiles,
+      }])
+
+      setStagePanelItemId(null)
+      setStageNote('')
+      setStageFiles([])
+      loadItems()
+    } catch (err) {
+      setError(err.message)
+    }
+    setStageSubmitting(false)
   }
 
   async function handleSubmitForApproval({ note, images }) {
@@ -848,28 +967,6 @@ export default function Tracker({ user, onLogout }) {
     return true
   })
 
-  // Sidebar "Tasks Overview" is always scoped to the current user's own
-  // tasks (owned by them, or a cross-team task they're a participant on) —
-  // it must NOT change when switching between My Tasks / My Team / General
-  // / Directory, otherwise the sidebar count contradicts the section
-  // you're looking at. This is intentionally separate from `scopedItems`,
-  // which drives the in-page stat cards and DOES change per nav tab.
-  const myItems = items.filter((i) => {
-    const participants = Array.isArray(i.participants) ? i.participants : []
-    const isCrossTeamParticipant = participants.some((p) => p.id === user?.id && p.team !== i.team)
-    return i.owner_name === user?.name || isCrossTeamParticipant
-  })
-  const myCounts = {
-    open: myItems.filter((i) => i.status === 'open').length,
-    in_progress: myItems.filter((i) => i.status === 'in_progress').length,
-    ready_to_close: myItems.filter((i) => i.status === 'ready_to_close').length,
-    pending_approval: myItems.filter((i) => i.status === 'pending_approval').length,
-    closed: myItems.filter((i) => i.status === 'closed').length,
-    overdue: myItems.filter(isOverdue).length,
-    critical: myItems.filter((i) => i.status !== 'closed' && i.severity === 'critical').length,
-  }
-  const myTotal = myItems.length
-
   const filtered = scopedItems.filter((i) => {
     if (filterStatus !== 'all' && i.status !== filterStatus) return false
     if (filterSeverity !== 'all' && i.severity !== filterSeverity) return false
@@ -935,6 +1032,7 @@ export default function Tracker({ user, onLogout }) {
     const isBlockEditing = !!blockEditing[item.id]
     const isOwner = item.owner_name === user?.name
     const isTeamManager = user?.role === 'MANAGER' && user?.team === item.team
+    const isStagePanelOpen = stagePanelItemId === item.id
     return (
       <div key={item.id} className={`bg-surface border rounded-xl p-5 shadow-sm border-l-4 ${overdue ? 'border-l-accent-red border-line' : item.blocked ? 'border-l-accent-amber border-line' : 'border-l-transparent border-line'}`}>
         <div className="flex justify-between items-center gap-4 flex-wrap">
@@ -955,7 +1053,7 @@ export default function Tracker({ user, onLogout }) {
                 <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-ink/5 text-ink-muted">Private</span>
               )}
               {item.assigned_by_mentor && (
-                <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded" style={{ backgroundColor: '#7C5CBF15', color: '#7C5CBF' }}>
+                <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded text-white" style={{ backgroundColor: MENTOR_DARK }}>
                   Assigned by {item.assigned_by_mentor}
                 </span>
               )}
@@ -965,7 +1063,7 @@ export default function Tracker({ user, onLogout }) {
                 </span>
               )}
               {overdue && <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-red/10 text-accent-red">Overdue</span>}
-              {item.blocked && <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-amber/10 text-accent-amber">🚧 Blocked</span>}
+              {item.blocked && <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded text-white" style={{ backgroundColor: STUCK_DARK }}>🚧 Blocked</span>}
             </div>
             <p className="text-sm text-ink-muted mt-0.5 font-mono">
               {item.owner_name} {item.team && `· ${item.team}`} · due {item.deadline}
@@ -999,21 +1097,23 @@ export default function Tracker({ user, onLogout }) {
             )}
 
             {label && (
-              <button onClick={() => advanceStatus(item)} className="text-sm bg-ink text-white px-3 py-1.5 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap">{label}</button>
+              <button onClick={() => openStagePanel(item.id)} className="text-sm bg-ink text-white px-3 py-1.5 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap">{label}</button>
             )}
 
             {isOwner && item.status !== 'closed' && (
               item.blocked ? (
                 <button
                   onClick={() => clearBlocked(item)}
-                  className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border border-accent-amber text-accent-amber hover:bg-accent-amber/10 transition-colors"
+                  className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap text-white transition-colors"
+                  style={{ backgroundColor: STUCK_DARK }}
                 >
                   Unblock
                 </button>
               ) : (
                 <button
                   onClick={() => (isBlockEditing ? setBlockEditing((p) => ({ ...p, [item.id]: false })) : openBlockEditor(item))}
-                  className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border border-line text-ink-muted hover:text-accent-amber hover:border-accent-amber transition-colors"
+                  className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap text-white transition-colors"
+                  style={{ backgroundColor: isBlockEditing ? '#5C3C0D' : STUCK_DARK }}
                 >
                   🚧 I'm Stuck
                 </button>
@@ -1021,16 +1121,30 @@ export default function Tracker({ user, onLogout }) {
             )}
             <button
               onClick={() => (isEditingMentor ? setMentorEditing((p) => ({ ...p, [item.id]: false })) : openMentorEditor(item))}
-              className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap border transition-colors"
-              style={{ borderColor: MENTOR_COLOR, color: MENTOR_COLOR, backgroundColor: isEditingMentor ? `${MENTOR_COLOR}15` : 'transparent' }}
+              className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap text-white transition-colors"
+              style={{ backgroundColor: isEditingMentor ? '#382854' : MENTOR_DARK }}
             >
               Mentor {item.mentor_comment ? '💬' : ''}
             </button>
-            <button onClick={() => toggleExpanded(item.id)} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted hover:text-accent-blue border border-line rounded-md px-2.5 py-1.5 whitespace-nowrap">
+            <button onClick={() => toggleExpanded(item.id)} className="font-mono text-[11px] uppercase tracking-wider text-white rounded-md px-2.5 py-1.5 whitespace-nowrap bg-ink hover:bg-ink/90 transition-colors">
               {isOpen ? 'Hide' : 'Timeline'} ({entries.length})
             </button>
           </div>
         </div>
+
+        {isStagePanelOpen && label && (
+          <StageNotePanel
+            label={label}
+            note={stageNote}
+            onNoteChange={setStageNote}
+            files={stageFiles}
+            onAddFiles={addStageFiles}
+            onRemoveFile={removeStageFile}
+            onCancel={() => setStagePanelItemId(null)}
+            onConfirm={() => confirmStageAdvance(item)}
+            submitting={stageSubmitting}
+          />
+        )}
 
         {item.status === 'ready_to_close' && item.closure_note && (
           <div className="mt-3 rounded-lg px-3 py-2 text-sm bg-accent-red/10" style={{ borderLeft: '3px solid #C1443C' }}>
@@ -1053,7 +1167,7 @@ export default function Tracker({ user, onLogout }) {
               value={blockDraft[item.id] || ''} onChange={(e) => setBlockDraft((p) => ({ ...p, [item.id]: e.target.value }))} />
             <div className="flex gap-2 mt-2 justify-end">
               <button onClick={() => setBlockEditing((p) => ({ ...p, [item.id]: false }))} className="text-xs px-3 py-1.5 rounded-md text-ink-muted hover:text-ink">Cancel</button>
-              <button onClick={() => flagBlocked(item)} className="text-xs px-3 py-1.5 rounded-md text-white font-medium bg-accent-amber hover:opacity-90">Flag as Blocked</button>
+              <button onClick={() => flagBlocked(item)} className="text-xs px-3 py-1.5 rounded-md text-white font-medium" style={{ backgroundColor: STUCK_DARK }}>Flag as Blocked</button>
             </div>
           </div>
         )}
@@ -1099,14 +1213,14 @@ export default function Tracker({ user, onLogout }) {
         })()}
 
         {item.mentor_comment && !isEditingMentor && (
-          <div className="mt-3 rounded-lg px-3 py-2 text-sm" style={{ backgroundColor: `${MENTOR_COLOR}12`, borderLeft: `3px solid ${MENTOR_COLOR}` }}>
-            <p className="font-mono text-[10px] uppercase tracking-wider mb-0.5" style={{ color: MENTOR_COLOR }}>Mentor Comment — {item.mentor_by}</p>
+          <div className="mt-3 rounded-lg px-3 py-2 text-sm" style={{ backgroundColor: `${MENTOR_DARK}18`, borderLeft: `3px solid ${MENTOR_DARK}` }}>
+            <p className="font-mono text-[10px] uppercase tracking-wider mb-0.5" style={{ color: MENTOR_DARK }}>Mentor Comment — {item.mentor_by}</p>
             <p className="text-ink">{renderWithMentions(item.mentor_comment)}</p>
           </div>
         )}
 
         {isEditingMentor && (
-          <div className="mt-3 rounded-lg p-3 relative" style={{ backgroundColor: `${MENTOR_COLOR}0D`, border: `1px solid ${MENTOR_COLOR}40` }}>
+          <div className="mt-3 rounded-lg p-3 relative" style={{ backgroundColor: `${MENTOR_DARK}0D`, border: `1px solid ${MENTOR_DARK}40` }}>
             <textarea autoFocus rows={2} placeholder="Leave a comment on this item's progress… use @Name to notify someone"
               ref={(el) => (mentionInputRefs.current[item.id] = el)}
               className="w-full bg-surface border border-line rounded-md p-2 text-sm focus:outline-none focus:ring-2"
@@ -1137,7 +1251,7 @@ export default function Tracker({ user, onLogout }) {
             <p className="font-mono text-[10px] text-ink-muted mt-1">Tip: type @ then a name to notify someone</p>
             <div className="flex gap-2 mt-2 justify-end">
               <button onClick={() => { setMentorEditing((p) => ({ ...p, [item.id]: false })); setMentionState(null) }} className="text-xs px-3 py-1.5 rounded-md text-ink-muted hover:text-ink">Cancel</button>
-              <button onClick={() => saveMentorComment(item)} className="text-xs px-3 py-1.5 rounded-md text-white font-medium" style={{ backgroundColor: MENTOR_COLOR }}>Post Comment</button>
+              <button onClick={() => saveMentorComment(item)} className="text-xs px-3 py-1.5 rounded-md text-white font-medium" style={{ backgroundColor: MENTOR_DARK }}>Post Comment</button>
             </div>
           </div>
         )}
@@ -1265,7 +1379,7 @@ export default function Tracker({ user, onLogout }) {
           </nav>
 
           <div className="mt-6">
-            <TasksOverviewCard counts={myCounts} total={myTotal} />
+            <TasksOverviewCard counts={counts} total={totalScoped} />
           </div>
         </div>
         <div className="border-t border-white/10 pt-4">
@@ -1479,12 +1593,12 @@ export default function Tracker({ user, onLogout }) {
                         <div className="overflow-x-auto">
                           <table className="w-full text-sm">
                             <thead>
-                              <tr className="border-b border-line">
-                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-ink-muted px-5 py-2.5">Task</th>
-                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-ink-muted px-3 py-2.5">Status</th>
-                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-ink-muted px-3 py-2.5">Severity</th>
-                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-ink-muted px-3 py-2.5">Due Date</th>
-                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-ink-muted px-3 py-2.5">Assignee</th>
+                              <tr className="bg-ink">
+                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-white/70 px-5 py-2.5 rounded-tl-md">Task</th>
+                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-white/70 px-3 py-2.5">Status</th>
+                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-white/70 px-3 py-2.5">Severity</th>
+                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-white/70 px-3 py-2.5">Due Date</th>
+                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-white/70 px-3 py-2.5 rounded-tr-md">Assignee</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-line">
@@ -1504,7 +1618,7 @@ export default function Tracker({ user, onLogout }) {
                                     </td>
                                     <td className="px-3 py-3">
                                       <span className={`font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded whitespace-nowrap ${style.badge}`}>{STATUS_LABELS[item.status]}</span>
-                                    </td>  
+                                    </td>
                                     <td className="px-3 py-3">
                                       <span className={`font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded whitespace-nowrap ${sevStyle.badge}`}>{SEVERITY_LABELS[item.severity] || item.severity}</span>
                                     </td>
@@ -1536,4 +1650,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}    
+}     
