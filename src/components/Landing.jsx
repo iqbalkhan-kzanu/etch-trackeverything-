@@ -4,7 +4,7 @@ import { useMemo } from 'react'
    ETCH — Tata Electronics · Dholera Fab
    Theme: Cleanroom / Litho Bay
    - Graphite base (cleanroom steel), blue signature (stepper
-     alignment laser / ion-beam blue), cyan for active states
+     alignment laser / ion-beam blue), cyan for active states  
      (etch plasma glow), green/red for bin status.
    - Signature element: live wafer bin-map with inspection sweep.
    --------------------------------------------------------------- */
