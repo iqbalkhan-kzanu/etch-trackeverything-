@@ -48,14 +48,14 @@ function RefreshIcon({ className, spinning }) {
 function ChipGraphic() {
   return (
     <svg viewBox="0 0 160 160" className="w-full h-full opacity-90">
-      <rect x="40" y="40" width="80" height="80" rx="8" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" />
-      <rect x="55" y="55" width="50" height="50" rx="4" fill="rgba(43,108,176,0.35)" stroke="rgba(43,108,176,0.6)" strokeWidth="1" />
+      <rect x="40" y="40" width="80" height="80" rx="8" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" />
+      <rect x="55" y="55" width="50" height="50" rx="4" fill="rgba(43,108,176,0.4)" stroke="rgba(43,108,176,0.7)" strokeWidth="1" />
       {Array.from({ length: 6 }).map((_, i) => (
         <g key={i}>
-          <line x1={0} y1={52 + i * 11} x2={40} y2={52 + i * 11} stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" />
-          <line x1={120} y1={52 + i * 11} x2={160} y2={52 + i * 11} stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" />
-          <line x1={52 + i * 11} y1={0} x2={52 + i * 11} y2={40} stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" />
-          <line x1={52 + i * 11} y1={120} x2={52 + i * 11} y2={160} stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" />
+          <line x1={0} y1={52 + i * 11} x2={40} y2={52 + i * 11} stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" />
+          <line x1={120} y1={52 + i * 11} x2={160} y2={52 + i * 11} stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" />
+          <line x1={52 + i * 11} y1={0} x2={52 + i * 11} y2={40} stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" />
+          <line x1={52 + i * 11} y1={120} x2={52 + i * 11} y2={160} stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" />
         </g>
       ))}
     </svg>
@@ -68,17 +68,17 @@ function StoryCard({ n, rank, bookmarked, onToggleBookmark }) {
       href={n.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex gap-0 bg-surface border border-line rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-accent-blue/30 transition-all duration-200"
+      className="group relative flex gap-0 bg-surface border border-line rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-accent-blue/30 transition-all duration-200 h-full"
     >
       <div
-        className="w-16 sm:w-20 shrink-0 flex items-center justify-center text-white font-mono text-2xl font-bold"
+        className="w-14 sm:w-16 shrink-0 flex items-center justify-center text-white font-mono text-xl font-bold"
         style={{ background: RANK_GRADIENTS[(rank - 1) % RANK_GRADIENTS.length] }}
       >
         {String(rank).padStart(2, '0')}
       </div>
 
       {n.image_url ? (
-        <div className="w-28 h-28 sm:w-32 sm:h-auto shrink-0 hidden sm:block overflow-hidden">
+        <div className="w-24 sm:w-28 shrink-0 hidden sm:block overflow-hidden">
           <img
             src={n.image_url}
             alt=""
@@ -88,8 +88,8 @@ function StoryCard({ n, rank, bookmarked, onToggleBookmark }) {
         </div>
       ) : null}
 
-      <div className="min-w-0 flex-1 p-4 sm:p-5 flex flex-col justify-center">
-        <p className="font-semibold text-ink leading-snug group-hover:text-accent-blue transition-colors">{n.title}</p>
+      <div className="min-w-0 flex-1 p-4 flex flex-col justify-center">
+        <p className="font-semibold text-ink leading-snug group-hover:text-accent-blue transition-colors pr-8">{n.title}</p>
         {n.summary && <p className="text-sm text-ink-muted mt-1.5 line-clamp-2">{n.summary}</p>}
         <div className="flex items-center gap-2 mt-2.5">
           <span className="font-mono text-[10px] uppercase tracking-wider font-semibold text-accent-blue">{n.source}</span>
@@ -104,12 +104,12 @@ function StoryCard({ n, rank, bookmarked, onToggleBookmark }) {
 
       <button
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleBookmark(n.id) }}
-        className={`shrink-0 self-start m-3 sm:m-4 w-9 h-9 rounded-full flex items-center justify-center border transition-colors ${
-          bookmarked ? 'bg-accent-amber/10 border-accent-amber text-accent-amber' : 'border-line text-ink-muted hover:text-accent-amber hover:border-accent-amber'
+        className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center border transition-colors ${
+          bookmarked ? 'bg-accent-amber/10 border-accent-amber text-accent-amber' : 'border-line text-ink-muted hover:text-accent-amber hover:border-accent-amber bg-surface'
         }`}
         title={bookmarked ? 'Remove bookmark' : 'Bookmark'}
       >
-        <BookmarkIcon filled={bookmarked} className="w-4 h-4" />
+        <BookmarkIcon filled={bookmarked} className="w-3.5 h-3.5" />
       </button>
     </a>
   )
@@ -156,27 +156,25 @@ export default function SemiconductorPulse() {
   const displayed = showBookmarksOnly ? news.filter((n) => bookmarks.has(n.id)) : news
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="relative overflow-hidden rounded-2xl bg-ink text-white p-6 sm:p-8 mb-6">
-        <div className="absolute -top-10 -right-10 w-56 h-56 opacity-60">
-          <ChipGraphic />
-        </div>
-        <div className="relative">
+    <div className="w-full max-w-none">
+      {/* Hero banner */}
+      <div className="relative overflow-hidden rounded-2xl bg-ink text-white p-6 sm:p-10 mb-6 flex items-center justify-between gap-8">
+        <div className="relative z-10 flex-1">
           <div className="flex items-center gap-2 mb-3">
             <span className="w-1.5 h-1.5 rounded-full bg-accent-blue animate-pulse" />
             <p className="font-mono text-xs uppercase tracking-[0.15em] text-accent-blue">Industry Pulse</p>
           </div>
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
-            What's up <span className="text-white/50 font-normal"> Semicon </span>
-             </h2>
+          <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
+            What's up <span className="text-white/50 font-normal">Semicon</span>
+          </h2>
           <p className="text-sm text-white/50 mt-2">
             {lastFetched ? `Updated ${formatDate(lastFetched)}` : 'Fetching the latest…'} · Your daily pulse of the semiconductor industry
           </p>
 
-          <div className="flex items-center gap-2 mt-5">
+          <div className="flex items-center gap-2 mt-6">
             <button
               onClick={() => setShowBookmarksOnly(false)}
-              className={`font-mono text-[11px] uppercase tracking-wider px-3.5 py-2 rounded-lg transition-colors ${
+              className={`font-mono text-[11px] uppercase tracking-wider px-4 py-2 rounded-lg transition-colors ${
                 !showBookmarksOnly ? 'bg-white text-ink' : 'bg-white/10 text-white/70 hover:bg-white/15'
               }`}
             >
@@ -184,7 +182,7 @@ export default function SemiconductorPulse() {
             </button>
             <button
               onClick={() => setShowBookmarksOnly(true)}
-              className={`font-mono text-[11px] uppercase tracking-wider px-3.5 py-2 rounded-lg transition-colors flex items-center gap-1.5 ${
+              className={`font-mono text-[11px] uppercase tracking-wider px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5 ${
                 showBookmarksOnly ? 'bg-white text-ink' : 'bg-white/10 text-white/70 hover:bg-white/15'
               }`}
             >
@@ -194,17 +192,22 @@ export default function SemiconductorPulse() {
             <button
               onClick={loadNews}
               disabled={loading}
-              className="ml-auto font-mono text-[11px] uppercase tracking-wider px-3.5 py-2 rounded-lg bg-white/10 text-white/70 hover:bg-white/15 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              className="ml-auto font-mono text-[11px] uppercase tracking-wider px-4 py-2 rounded-lg bg-white/10 text-white/70 hover:bg-white/15 transition-colors flex items-center gap-1.5 disabled:opacity-50"
             >
               <RefreshIcon className="w-3.5 h-3.5" spinning={loading} />
               Refresh
             </button>
           </div>
         </div>
+
+        <div className="hidden md:block w-40 h-40 lg:w-52 lg:h-52 shrink-0 opacity-90">
+          <ChipGraphic />
+        </div>
       </div>
 
+      {/* Content */}
       {loading ? (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-28 bg-surface border border-line rounded-2xl animate-pulse" />
           ))}
@@ -221,7 +224,7 @@ export default function SemiconductorPulse() {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {displayed.map((n) => {
             const originalRank = news.findIndex((item) => item.id === n.id) + 1
             return (
@@ -239,4 +242,4 @@ export default function SemiconductorPulse() {
     </div>
   )
 }
-      
+     
