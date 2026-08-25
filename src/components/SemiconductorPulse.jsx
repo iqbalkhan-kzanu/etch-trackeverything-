@@ -167,8 +167,8 @@ export default function SemiconductorPulse() {
             <p className="font-mono text-xs uppercase tracking-[0.15em] text-accent-blue">Industry Pulse</p>
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
-            Top 10 <span className="text-white/50 font-normal">in Semiconductors Today</span>
-          </h2>
+            What's up <span className="text-white/50 font-normal"> Semicon </span>
+             </h2>
           <p className="text-sm text-white/50 mt-2">
             {lastFetched ? `Updated ${formatDate(lastFetched)}` : 'Fetching the latest…'} · Your daily pulse of the semiconductor industry
           </p>
