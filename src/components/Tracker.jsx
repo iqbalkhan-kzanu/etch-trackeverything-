@@ -28,6 +28,9 @@ const STATUS_STYLES = {
 const MENTOR_COLOR = '#7C5CBF'
 const MENTOR_DARK = '#4A3572'
 const STUCK_DARK = '#7A4E14'
+const OVERDUE_COLOR = '#E8702A'
+const CRITICAL_COLOR = '#C1443C'
+const NAV_STORAGE_KEY = 'etch_last_nav'
 const ACTION_META = {
   created: { label: 'Logged', color: '#5C6670' },
   advanced_to_in_progress: { label: 'Started progress', color: '#2B6CB0' },
@@ -401,8 +404,8 @@ function TasksOverviewCard({ counts, total }) {
     { key: 'closed', label: 'Closed', color: STATUS_STYLES.closed.top, value: counts.closed },
   ]
   const flags = [
-    { key: 'overdue', label: 'Overdue', color: '#C1443C', value: counts.overdue },
-    { key: 'critical', label: 'Critical', color: '#C1443C', value: counts.critical },
+    { key: 'overdue', label: 'Overdue', color: OVERDUE_COLOR, value: counts.overdue },
+    { key: 'critical', label: 'Critical', color: CRITICAL_COLOR, value: counts.critical },
   ]
 
   return (
@@ -491,12 +494,13 @@ export default function Tracker({ user, onLogout }) {
   const lastSeenHazardIdRef = useRef(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [nav, setNav] = useState('mine')
+  const [nav, setNav] = useState(() => localStorage.getItem(NAV_STORAGE_KEY) || 'mine')
   const [chatUser, setChatUser] = useState(null)
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterOwner, setFilterOwner] = useState('')
   const [filterSeverity, setFilterSeverity] = useState('all')
+  const [filterDeadline, setFilterDeadline] = useState('')
   const [sortBySeverity, setSortBySeverity] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [sendingBackItem, setSendingBackItem] = useState(null)
@@ -647,6 +651,7 @@ export default function Tracker({ user, onLogout }) {
 
   function goTo(key) {
     setNav(key)
+    localStorage.setItem(NAV_STORAGE_KEY, key)
     setMobileNavOpen(false)
     if (key === 'general') {
       localStorage.setItem(`etch_general_last_viewed_${user?.id}`, new Date().toISOString())
@@ -971,6 +976,7 @@ export default function Tracker({ user, onLogout }) {
     if (filterStatus !== 'all' && i.status !== filterStatus) return false
     if (filterSeverity !== 'all' && i.severity !== filterSeverity) return false
     if (filterOwner && !i.owner_name.toLowerCase().includes(filterOwner.toLowerCase())) return false
+    if (filterDeadline && i.deadline !== filterDeadline) return false
     return true
   })
 
@@ -1003,7 +1009,7 @@ export default function Tracker({ user, onLogout }) {
       setFocusedItemId(sortedFiltered[0].id)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nav, filterStatus, filterSeverity, filterOwner, sortBySeverity, items])
+  }, [nav, filterStatus, filterSeverity, filterOwner, filterDeadline, sortBySeverity, items])
 
   const focusedItem = sortedFiltered.find((i) => i.id === focusedItemId) || null
 
@@ -1034,7 +1040,7 @@ export default function Tracker({ user, onLogout }) {
     const isTeamManager = user?.role === 'MANAGER' && user?.team === item.team
     const isStagePanelOpen = stagePanelItemId === item.id
     return (
-      <div key={item.id} className={`bg-surface border rounded-xl p-5 shadow-sm border-l-4 ${overdue ? 'border-l-accent-red border-line' : item.blocked ? 'border-l-accent-amber border-line' : 'border-l-transparent border-line'}`}>
+      <div key={item.id} className={`bg-surface border rounded-xl p-5 shadow-sm border-l-4 ${overdue ? 'border-l-[#E8702A] border-line' : item.blocked ? 'border-l-accent-amber border-line' : 'border-l-transparent border-line'}`}>
         <div className="flex justify-between items-center gap-4 flex-wrap">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -1062,7 +1068,7 @@ export default function Tracker({ user, onLogout }) {
                   👥 Group Task · {item.participants.map((p) => p.name).join(', ')}
                 </span>
               )}
-              {overdue && <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-red/10 text-accent-red">Overdue</span>}
+              {overdue && <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded text-white" style={{ backgroundColor: OVERDUE_COLOR }}>Overdue</span>}
               {item.blocked && <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded text-white" style={{ backgroundColor: STUCK_DARK }}>🚧 Blocked</span>}
             </div>
             <p className="text-sm text-ink-muted mt-0.5 font-mono">
@@ -1438,8 +1444,8 @@ export default function Tracker({ user, onLogout }) {
                 <StatCard icon={<CheckCircleStatIcon className="w-4.5 h-4.5" />} label="Ready to Close" value={counts.ready_to_close} percent={pct(counts.ready_to_close)} color="#D98C2B" />
                 <StatCard icon={<PersonStatIcon className="w-4.5 h-4.5" />} label="Pending Approval" value={counts.pending_approval} percent={pct(counts.pending_approval)} color="#7C5CBF" />
                 <StatCard icon={<CheckCircleStatIcon className="w-4.5 h-4.5" />} label="Closed" value={counts.closed} percent={pct(counts.closed)} color="#2F8F5B" />
-                <StatCard icon={<AlarmStatIcon className="w-4.5 h-4.5" />} label="Overdue" value={counts.overdue} percent={pct(counts.overdue)} color="#C1443C" />
-                <StatCard icon={<AlertTriangleStatIcon className="w-4.5 h-4.5" />} label="Critical" value={counts.critical} percent={pct(counts.critical)} color="#C1443C" />
+                <StatCard icon={<AlarmStatIcon className="w-4.5 h-4.5" />} label="Overdue" value={counts.overdue} percent={pct(counts.overdue)} color={OVERDUE_COLOR} />
+                <StatCard icon={<AlertTriangleStatIcon className="w-4.5 h-4.5" />} label="Critical" value={counts.critical} percent={pct(counts.critical)} color={CRITICAL_COLOR} />
               </div>
 
               {error && <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-lg p-3 mb-4 text-sm font-mono">{error}</div>}
@@ -1560,8 +1566,15 @@ export default function Tracker({ user, onLogout }) {
                   <option value="all">All severities</option>
                   {SEVERITIES.map((s) => <option key={s} value={s}>{SEVERITY_LABELS[s]}</option>)}
                 </select>
-                <input placeholder="Filter by owner..." className="border border-line rounded-lg p-2.5 text-sm flex-1 min-w-[200px] bg-surface shadow-sm"
+                <input placeholder="Filter by owner..." className="border border-line rounded-lg p-2.5 text-sm flex-1 min-w-[180px] bg-surface shadow-sm"
                   value={filterOwner} onChange={(e) => setFilterOwner(e.target.value)} />
+                <input type="date" title="Filter by due date" className="border border-line rounded-lg p-2.5 text-sm bg-surface shadow-sm"
+                  value={filterDeadline} onChange={(e) => setFilterDeadline(e.target.value)} />
+                {filterDeadline && (
+                  <button onClick={() => setFilterDeadline('')} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted hover:text-ink border border-line rounded-lg px-2.5 py-2.5">
+                    Clear date
+                  </button>
+                )}
                 <label className="flex items-center gap-2 text-sm text-ink-muted font-mono text-[11px] uppercase tracking-wider cursor-pointer select-none">
                   <input type="checkbox" checked={sortBySeverity} onChange={(e) => setSortBySeverity(e.target.checked)} />
                   Sort by severity
@@ -1593,12 +1606,12 @@ export default function Tracker({ user, onLogout }) {
                         <div className="overflow-x-auto">
                           <table className="w-full text-sm">
                             <thead>
-                              <tr className="bg-ink">
-                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-white/70 px-5 py-2.5 rounded-tl-md">Task</th>
-                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-white/70 px-3 py-2.5">Status</th>
-                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-white/70 px-3 py-2.5">Severity</th>
-                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-white/70 px-3 py-2.5">Due Date</th>
-                                <th className="text-left font-mono text-[10px] uppercase tracking-wider text-white/70 px-3 py-2.5 rounded-tr-md">Assignee</th>
+                              <tr className="border-b-2 border-line">
+                                <th className="text-left font-mono text-[11px] uppercase tracking-wider text-ink font-bold px-5 py-2.5">Task</th>
+                                <th className="text-left font-mono text-[11px] uppercase tracking-wider text-ink font-bold px-3 py-2.5">Status</th>
+                                <th className="text-left font-mono text-[11px] uppercase tracking-wider text-ink font-bold px-3 py-2.5">Severity</th>
+                                <th className="text-left font-mono text-[11px] uppercase tracking-wider text-ink font-bold px-3 py-2.5">Due Date</th>
+                                <th className="text-left font-mono text-[11px] uppercase tracking-wider text-ink font-bold px-3 py-2.5">Assignee</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-line">
