@@ -242,4 +242,4 @@ export default function SemiconductorPulse() {
     </div>
   )
 }
-     
+       

@@ -923,4 +923,4 @@ export default function Safety({ user }) {
       )}
     </div>
   )
-}     
+}         
