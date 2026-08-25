@@ -1482,7 +1482,7 @@ export default function Tracker({ user, onLogout }) {
                                     </td>
                                     <td className="px-3 py-3">
                                       <span className={`font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded whitespace-nowrap ${style.badge}`}>{STATUS_LABELS[item.status]}</span>
-                                    </td>
+                                    </td>  
                                     <td className="px-3 py-3">
                                       <span className={`font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded whitespace-nowrap ${sevStyle.badge}`}>{SEVERITY_LABELS[item.severity] || item.severity}</span>
                                     </td>
