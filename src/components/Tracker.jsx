@@ -7,6 +7,7 @@ import AssignWorkModal from './AssignWorkModal'
 import SendBackModal from './SendBackModal'
 import SubmitForApprovalModal from './SubmitForApprovalModal'
 import GroupsList from './GroupsList'
+import SemiconductorPulse from './SemiconductorPulse'
 
 const SOURCES = ['governance', 'audit', 'project', 'leadership_review', 'other']
 const STAGES = ['open', 'in_progress', 'ready_to_close', 'pending_approval', 'closed']
@@ -317,6 +318,9 @@ function BookIcon({ className }) {
 }
 function GroupsNavIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>)
+}
+function NewsIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 8h10M7 12h10M7 16h6" /></svg>)
 }
 
 function ClockStatIcon({ className }) {
@@ -884,7 +888,7 @@ export default function Tracker({ user, onLogout }) {
 
   const focusedItem = sortedFiltered.find((i) => i.id === focusedItemId) || null
 
-  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory', groups: 'Groups' }[nav]
+  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory', groups: 'Groups', pulse: 'Industry Pulse' }[nav]
 
   const navItem = (key, label, icon) => (
     <button
@@ -1235,6 +1239,7 @@ export default function Tracker({ user, onLogout }) {
               </span>,
               <GroupsNavIcon className="w-4 h-4" />
             )}
+            {navItem('pulse', 'Industry Pulse', <NewsIcon className="w-4 h-4" />)}
           </nav>
 
           <div className="mt-6">
@@ -1258,7 +1263,7 @@ export default function Tracker({ user, onLogout }) {
             <span className="text-sm font-medium text-ink">{user?.name}</span>
             <button onClick={onLogout} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted border border-line rounded-md px-3 py-2">Log Out</button>
           </div>
-          {nav !== 'safety' && nav !== 'directory' && nav !== 'groups' && (     
+          {nav !== 'safety' && nav !== 'directory' && nav !== 'groups' && nav !== 'pulse' && (     
             <button onClick={() => setShowForm((s) => !s)} className="bg-accent-blue text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-blue/90 transition-colors">
               {showForm ? 'Cancel' : '+ New Action Item'}
             </button>
@@ -1276,6 +1281,8 @@ export default function Tracker({ user, onLogout }) {
             />    
           ) : nav === 'groups' ? (
             <GroupsList user={user} profiles={profiles} onUnreadChange={setGroupUnread} />
+          ) : nav === 'pulse' ? (
+            <SemiconductorPulse />
           ) : (      
             <>
               {nav === 'general' && (
@@ -1507,4 +1514,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}          
+}    
