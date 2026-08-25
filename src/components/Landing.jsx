@@ -297,7 +297,7 @@ const FEATURES = [
   {
     title: 'Automated Reminders',
     desc: 'Owners get nudged as deadlines approach, and overdue items escalate automatically — so nothing slips silently.',
-    tag: 'In Progress',
+    tag: null ,     
   },
   {
     title: 'Closure Verification',
@@ -523,4 +523,4 @@ export default function Landing({ onEnter }) {
       </div>    
     </div>
   )
-}      
+}         
