@@ -1,11 +1,10 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 /* ---------------------------------------------------------------
    ETCH — Tata Electronics · Dholera Fab
    Theme: Cleanroom / Litho Bay
    - Graphite base (cleanroom steel), blue signature (stepper
-     alignment laser / ion-beam blue), cyan for active states  
-     (etch plasma glow), green/red for bin status.
+     alignment laser / ion-beam blue), cyan for active states  t t     (etch plasma glow), green/red for bin status.
    - Signature element: live wafer bin-map with inspection sweep.
    --------------------------------------------------------------- */
 
@@ -143,6 +142,18 @@ const TOKENS = `
     color: var(--silver-muted);
     max-width: 46ch;
     margin: 20px 0 32px;
+    min-height: 1.55em;
+  }
+  .etch-sub-text {
+    display: inline-block;
+    animation: etch-sub-fade 0.5s ease;
+  }
+  @keyframes etch-sub-fade {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .etch-sub-text { animation: none !important; }
   }
   .etch-cta {
     background: var(--litho-blue);
@@ -312,6 +323,15 @@ const TICKER_ITEMS = [
   'FMCS ',   
 ]
 
+// Rotating welcome line — cycles Gujarati → Hindi → English so the hero
+// speaks to the whole Dholera site, not just one language group.
+const WELCOME_LINES = [
+  'સેમિકન્ડક્ટરની અદ્ભુત દુનિયામાં આપનું હાર્દિક સ્વાગત છે',
+  'सेमीकंडक्टर की अद्भुत दुनिया में आपका हार्दिक स्वागत है',
+  'Welcome to the wonderful world of semiconductors',
+]
+const WELCOME_ROTATE_MS = 3200
+
 /* deterministic pseudo-random, avoids hydration mismatch */
 function seeded(i) {
   const x = Math.sin(i * 12.9898) * 43758.5453
@@ -413,12 +433,34 @@ function Ticker() {
   )
 }
 
+// Rotates through WELCOME_LINES on a timer. The `key={index}` on the inner
+// span re-triggers the etch-sub-fade CSS animation on every switch, giving
+// a quick crossfade instead of an abrupt swap.
+function RotatingWelcome() {
+  const [index, setIndex] = useState(0)
+
+  useEffect(() => {
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (prefersReduced) return
+    const interval = setInterval(() => {
+      setIndex((i) => (i + 1) % WELCOME_LINES.length)
+    }, WELCOME_ROTATE_MS)
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <p className="etch-sub">
+      <span className="etch-sub-text" key={index}>{WELCOME_LINES[index]}</span>
+    </p>
+  )
+}
+
 export default function Landing({ onEnter }) {
   return (
     <div className="etch-landing">
       <style>{TOKENS}</style>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Gujarati:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap');`}</style>
 
       <Ticker />
 
@@ -440,9 +482,7 @@ export default function Landing({ onEnter }) {
           <h1 className="etch-h1">
             ETCH<span className="dot">.</span>
           </h1>
-          <p className="etch-sub">
-           સેમિકન્ડક્ટરની  અદ્ભુત  દુનિયામાં  આપનું  હાર્દિક  સ્વાગત છે           
-          </p>
+          <RotatingWelcome />
           <button className="etch-cta" onClick={onEnter}>
             Enter ETCH →
           </button>
