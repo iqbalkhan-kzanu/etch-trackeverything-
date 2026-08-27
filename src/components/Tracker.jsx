@@ -8,7 +8,8 @@ import SendBackModal from './SendBackModal'
 import SubmitForApprovalModal from './SubmitForApprovalModal'
 import GroupsList from './GroupsList'
 import SemiconductorPulse from './SemiconductorPulse'
-import { exportClosedItemsCSV, exportClosedItemsPDF } from './governanceReport'   
+import GovernanceAnalytics from './GovernanceAnalytics'
+import { exportClosedItemsCSV, exportClosedItemsPDF } from './governanceReport'
 
 const SOURCES = ['governance', 'audit', 'project', 'leadership_review', 'other']
 const STAGES = ['open', 'in_progress', 'ready_to_close', 'pending_approval', 'closed']
@@ -1092,7 +1093,7 @@ export default function Tracker({ user, onLogout }) {
 
   const focusedItem = sortedFiltered.find((i) => i.id === focusedItemId) || null
 
-  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory', groups: 'Groups', pulse: 'Industry Pulse' }[nav]
+  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory', groups: 'Groups', pulse: 'Industry Pulse', analytics: 'Governance Analytics' }[nav]
 
   const navItem = (key, label, icon) => (
     <button
@@ -1437,6 +1438,7 @@ export default function Tracker({ user, onLogout }) {
             )}
             {navItem('team', 'My Team', <TeamIcon className="w-4 h-4" />)}
             {navItem('safety', 'Safety at Site', <ShieldNavIcon className="w-4 h-4" />)}
+            {navItem('analytics', 'Governance Analytics', <AlertTriangleStatIcon className="w-4 h-4" />)}
             {navItem(
               'directory',
               <span className="flex items-center gap-2">
@@ -1485,7 +1487,7 @@ export default function Tracker({ user, onLogout }) {
             <span className="text-sm font-medium text-ink">{user?.name}</span>
             <button onClick={onLogout} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted border border-line rounded-md px-3 py-2">Log Out</button>
           </div>
-          {nav !== 'safety' && nav !== 'directory' && nav !== 'groups' && nav !== 'pulse' && (     
+          {nav !== 'safety' && nav !== 'directory' && nav !== 'groups' && nav !== 'pulse' && nav !== 'analytics' && (     
             <div className="flex items-center gap-2">
               <div className="flex gap-2">
                 <button
@@ -1523,6 +1525,8 @@ export default function Tracker({ user, onLogout }) {
             <GroupsList user={user} profiles={profiles} onUnreadChange={setGroupUnread} />
           ) : nav === 'pulse' ? (
             <SemiconductorPulse />
+          ) : nav === 'analytics' ? (
+            <GovernanceAnalytics items={items} activity={activity} />
           ) : (      
             <>
               {nav === 'general' && (
@@ -1761,4 +1765,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}      
+}    
