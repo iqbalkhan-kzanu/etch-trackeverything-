@@ -54,7 +54,7 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
     await supabase.from('messages').insert([{
       sender_id: mentor.id,
       recipient_id: assignee.id,
-      body: `Your manager ${mentor.name} has assigned this work to you: "${title.trim()}" — due ${deadline} · severity: ${severity}.`,
+      body: `TESTMARKER Your manager ${mentor.name} has assigned this work to you: "${title.trim()}" — due ${deadline} · severity: ${severity}.`,  
       item_id: data?.[0]?.id ?? null,
       target_nav: 'mine',
     }])
