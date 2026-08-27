@@ -1,20 +1,47 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 
+// ---------------------------------------------------------------------------
+// Color system
+// ---------------------------------------------------------------------------
+// Single source of truth for hazard color coding, based on the ANSI Z535.1 /
+// ISO 3864 convention used on real safety signage: red = danger/critical,
+// orange = warning, amber = caution, blue = notice, green = safe. Every
+// severity/status/score color in this file now derives from this palette
+// instead of each component inventing its own hex values.
+const SAFETY_PALETTE = {
+  critical: '#B3261E', // Danger red
+  high: '#D9482B',     // Warning orange-red
+  medium: '#E8A33D',   // Caution amber
+  low: '#3B7DD8',       // Notice blue
+  safe: '#2E8B57',      // Safe / sea green
+  neutral: '#5C6670',   // Slate — "not visible" / unknown
+}
+
 const SEVERITIES = [
-  { label: 'Low', color: '#5C6670' },
-  { label: 'Medium', color: '#D98C2B' },
-  { label: 'High', color: '#C1443C' },
-  { label: 'Critical', color: '#8B1E1E' },
+  { label: 'Low', color: SAFETY_PALETTE.low },
+  { label: 'Medium', color: SAFETY_PALETTE.medium },
+  { label: 'High', color: SAFETY_PALETTE.high },
+  { label: 'Critical', color: SAFETY_PALETTE.critical },
 ]
 const NEAR_MISS_CATEGORIES = ['Electrical', 'Mechanical', 'Chemical', 'Ergonomic', 'Procedural', 'Other']
+// Distinct, colorblind-conscious hues per category — separate from the
+// red→green severity scale so category and severity are never confused.
+const NEAR_MISS_CATEGORY_COLORS = {
+  Electrical: '#E8A33D',
+  Mechanical: '#5C6670',
+  Chemical: '#7C5CBF',
+  Ergonomic: '#3B7DD8',
+  Procedural: '#2E8B57',
+  Other: '#9A9A9A',
+}
 const SEVERITY_WEIGHT = { Low: 1, Medium: 2, High: 3, Critical: 4 }
 const MENTOR_COLOR = '#7C5CBF'
-const NEAR_MISS_COLOR = '#D98C2B'
+const NEAR_MISS_COLOR = SAFETY_PALETTE.medium
 const EHS_PASSWORD = 'An@1406'
 
 function severityColor(label) {
-  return SEVERITIES.find((s) => s.label === label)?.color || '#5C6670'
+  return SEVERITIES.find((s) => s.label === label)?.color || SAFETY_PALETTE.neutral
 }
 
 function formatTime(ts) {
@@ -101,22 +128,24 @@ Analyze it and respond ONLY with valid JSON, no markdown fences, no extra text, 
   return callGeminiText(prompt)
 }
 
+// Higher score = safer (used for the Area Safety Score, 100 = completely safe)
 function scoreColor(score) {
-  if (score >= 80) return '#2F8F5B'
-  if (score >= 50) return '#D98C2B'
-  return '#C1443C'
+  if (score >= 80) return SAFETY_PALETTE.safe
+  if (score >= 50) return SAFETY_PALETTE.medium
+  return SAFETY_PALETTE.critical
 }
 
+// Higher score = more dangerous (used for AI near-miss risk score / hotspot risk)
 function riskColor(score) {
-  if (score >= 66) return '#C1443C'
-  if (score >= 33) return '#D98C2B'
-  return '#2F8F5B'
+  if (score >= 66) return SAFETY_PALETTE.critical
+  if (score >= 33) return SAFETY_PALETTE.medium
+  return SAFETY_PALETTE.safe
 }
 
 function statusColor(status) {
-  if (status === 'safe') return '#2F8F5B'
-  if (status === 'hazard') return '#C1443C'
-  return '#5C6670'
+  if (status === 'safe') return SAFETY_PALETTE.safe
+  if (status === 'hazard') return SAFETY_PALETTE.critical
+  return SAFETY_PALETTE.neutral
 }
 
 function ResolveModal({ report, onCancel, onConfirm }) {
@@ -265,7 +294,7 @@ function NearMissCard({ nm, onLightbox, onAiClick, aiOpen, isAnalyzing }) {
       )}
       <div className="p-4">
         <div className="flex items-center gap-2 flex-wrap mb-1.5">
-          <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded text-white" style={{ backgroundColor: NEAR_MISS_COLOR }}>
+          <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded text-white" style={{ backgroundColor: NEAR_MISS_CATEGORY_COLORS[nm.category] || NEAR_MISS_COLOR }}>
             {nm.category}
           </span>
           <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded" style={{ backgroundColor: `${severityColor(nm.potential_severity)}15`, color: severityColor(nm.potential_severity) }}>
@@ -335,6 +364,116 @@ function BarRow({ label, value, max, color, suffix = '' }) {
   )
 }
 
+// Donut/pie chart, built in plain SVG so no charting library is required.
+// data: [{ label, value, color }]
+function PieChart({ data, size = 168, thickness = 30 }) {
+  const total = data.reduce((sum, d) => sum + d.value, 0)
+  const slices = data.filter((d) => d.value > 0)
+
+  if (total === 0 || slices.length === 0) {
+    return <p className="text-sm text-ink-muted">Not enough data yet.</p>
+  }
+
+  const radius = size / 2
+  const innerRadius = radius - thickness
+  const cx = radius
+  const cy = radius
+
+  const polar = (angleDeg, r) => {
+    const rad = ((angleDeg - 90) * Math.PI) / 180
+    return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)]
+  }
+
+  // A single-slice pie (100% one category) can't be drawn as an SVG arc
+  // (start === end), so nudge it just under a full circle.
+  let cumulative = 0
+  const arcs = slices.map((d) => {
+    const rawAngle = (d.value / total) * 360
+    const angle = slices.length === 1 ? 359.99 : rawAngle
+    const start = cumulative
+    const end = cumulative + angle
+    cumulative += rawAngle
+
+    const [x1, y1] = polar(start, radius)
+    const [x2, y2] = polar(end, radius)
+    const [x3, y3] = polar(end, innerRadius)
+    const [x4, y4] = polar(start, innerRadius)
+    const largeArc = end - start > 180 ? 1 : 0
+    const path = `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4} Z`
+    return { ...d, path }
+  })
+
+  return (
+    <div className="flex items-center gap-6 flex-wrap text-ink">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+        {arcs.map((a, i) => (
+          <path key={i} d={a.path} fill={a.color} stroke="var(--color-surface, #fff)" strokeWidth="2" />
+        ))}
+        <text x={cx} y={cy - 3} textAnchor="middle" fontSize="22" fontWeight="700" fill="currentColor" fontFamily="ui-monospace, monospace">{total}</text>
+        <text x={cx} y={cy + 15} textAnchor="middle" fontSize="9" fill="currentColor" opacity="0.55" fontFamily="ui-monospace, monospace" letterSpacing="1">TOTAL</text>
+      </svg>
+      <div className="space-y-1.5 min-w-[140px]">
+        {arcs.map((a, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: a.color }} />
+            <span className="text-sm text-ink">{a.label}</span>
+            <span className="font-mono text-xs text-ink-muted ml-auto pl-2">{a.value} · {Math.round((a.value / total) * 100)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Grouped-bar histogram (e.g. incidents per day). buckets: [{ label, ...values }]
+// series: [{ key, label, color }]
+function Histogram({ buckets, series, height = 150 }) {
+  const max = Math.max(1, ...buckets.flatMap((b) => series.map((s) => b[s.key] || 0)))
+  const hasAnyData = buckets.some((b) => series.some((s) => (b[s.key] || 0) > 0))
+
+  if (!hasAnyData) {
+    return <p className="text-sm text-ink-muted">Not enough data yet.</p>
+  }
+
+  return (
+    <div>
+      <div className="flex items-end gap-1.5 sm:gap-2.5 border-b border-line pb-0.5" style={{ height }}>
+        {buckets.map((b, i) => (
+          <div key={i} className="flex-1 flex items-end justify-center gap-0.5 h-full" title={b.label}>
+            {series.map((s) => {
+              const val = b[s.key] || 0
+              const pct = Math.max((val / max) * 100, val > 0 ? 4 : 0)
+              return (
+                <div
+                  key={s.key}
+                  className="flex-1 rounded-t-sm transition-all"
+                  style={{ height: `${pct}%`, backgroundColor: s.color, maxWidth: 16 }}
+                  title={`${b.label} — ${s.label}: ${val}`}
+                />
+              )
+            })}
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-1.5 sm:gap-2.5 mt-1.5">
+        {buckets.map((b, i) => (
+          <span key={i} className="flex-1 text-center font-mono text-[9px] text-ink-muted truncate">
+            {i % 2 === 0 || buckets.length <= 10 ? b.label : ''}
+          </span>
+        ))}
+      </div>
+      <div className="flex items-center gap-4 mt-3 flex-wrap">
+        {series.map((s) => (
+          <div key={s.key} className="flex items-center gap-1.5 text-xs">
+            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: s.color }} />
+            <span className="text-ink-muted">{s.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function AnalysisTab({ reports, nearMisses, loading }) {
   if (loading) return <p className="text-ink-muted font-mono text-sm">Loading…</p>
 
@@ -359,13 +498,43 @@ function AnalysisTab({ reports, nearMisses, loading }) {
   const maxRisk = locationStats.length > 0 ? locationStats[0].riskScore : 0
   const hotSpots = locationStats.filter((l) => l.hazards + l.nearMisses >= 3 || l.riskScore >= 6)
 
+  // Hazard severity breakdown — feeds the severity pie chart.
+  const severityPieData = SEVERITIES.map((s) => ({
+    label: s.label,
+    color: s.color,
+    value: reports.filter((r) => r.severity === s.label).length,
+  }))
+
+  // Near-miss category breakdown — feeds the category pie chart (prefer the
+  // AI-classified category once analysis has run, same as before).
   const categoryMap = {}
   nearMisses.forEach((nm) => {
     const cat = nm.ai_analyzed && nm.ai_category ? nm.ai_category : nm.category
     categoryMap[cat] = (categoryMap[cat] || 0) + 1
   })
-  const categoryStats = Object.entries(categoryMap).sort((a, b) => b[1] - a[1])
-  const maxCategory = categoryStats.length > 0 ? categoryStats[0][1] : 0
+  const categoryPieData = NEAR_MISS_CATEGORIES.map((c) => ({
+    label: c,
+    color: NEAR_MISS_CATEGORY_COLORS[c],
+    value: categoryMap[c] || 0,
+  }))
+
+  // 14-day incident trend — feeds the histogram.
+  const DAY_MS = 86400000
+  const HISTOGRAM_DAYS = 14
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const buckets = Array.from({ length: HISTOGRAM_DAYS }, (_, i) => {
+    const d = new Date(today.getTime() - (HISTOGRAM_DAYS - 1 - i) * DAY_MS)
+    return { label: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), hazards: 0, nearMisses: 0 }
+  })
+  function bucketFor(ts) {
+    const d = new Date(ts)
+    d.setHours(0, 0, 0, 0)
+    const idx = HISTOGRAM_DAYS - 1 - Math.round((today - d) / DAY_MS)
+    return idx >= 0 && idx < HISTOGRAM_DAYS ? idx : null
+  }
+  reports.forEach((r) => { const idx = bucketFor(r.created_at); if (idx != null) buckets[idx].hazards += 1 })
+  nearMisses.forEach((nm) => { const idx = bucketFor(nm.created_at); if (idx != null) buckets[idx].nearMisses += 1 })
 
   const totalIncidents = reports.length + nearMisses.length
 
@@ -381,7 +550,7 @@ function AnalysisTab({ reports, nearMisses, loading }) {
   return (
     <div className="space-y-6">
       {hotSpots.length > 0 && (
-        <div className="bg-surface border border-line rounded-xl p-5 shadow-sm" style={{ borderLeft: '4px solid #C1443C' }}>
+        <div className="bg-surface border border-line rounded-xl p-5 shadow-sm" style={{ borderLeft: `4px solid ${SAFETY_PALETTE.critical}` }}>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-lg">🔥</span>
             <h3 className="text-base font-semibold text-ink">Hot Spots</h3>
@@ -389,7 +558,7 @@ function AnalysisTab({ reports, nearMisses, loading }) {
           <p className="text-sm text-ink-muted mb-3">Locations with repeated hazards or near misses — worth a closer look before something more serious happens.</p>
           <div className="space-y-2">
             {hotSpots.map((l) => (
-              <div key={l.location} className="flex items-center justify-between rounded-lg px-3 py-2 bg-accent-red/5">
+              <div key={l.location} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: `${SAFETY_PALETTE.critical}0D` }}>
                 <div>
                   <p className="text-sm font-medium text-ink">{l.location}</p>
                   <p className="font-mono text-[11px] text-ink-muted">{l.hazards} hazard{l.hazards === 1 ? '' : 's'} · {l.nearMisses} near miss{l.nearMisses === 1 ? '' : 'es'}</p>
@@ -404,6 +573,32 @@ function AnalysisTab({ reports, nearMisses, loading }) {
       )}
 
       <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+        <h3 className="text-base font-semibold text-ink mb-1">14-Day Incident Trend</h3>
+        <p className="text-sm text-ink-muted mb-4">Hazards and near misses reported per day, most recent on the right.</p>
+        <Histogram
+          buckets={buckets}
+          series={[
+            { key: 'hazards', label: 'Hazards', color: SAFETY_PALETTE.critical },
+            { key: 'nearMisses', label: 'Near Misses', color: SAFETY_PALETTE.medium },
+          ]}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+          <h3 className="text-base font-semibold text-ink mb-1">Hazards by Severity</h3>
+          <p className="text-sm text-ink-muted mb-4">All-time split of reported hazards, open and resolved.</p>
+          <PieChart data={severityPieData} />
+        </div>
+
+        <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+          <h3 className="text-base font-semibold text-ink mb-1">Near Misses by Category</h3>
+          <p className="text-sm text-ink-muted mb-4">Where the near-miss reports are clustering.</p>
+          <PieChart data={categoryPieData} />
+        </div>
+      </div>
+
+      <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
         <h3 className="text-base font-semibold text-ink mb-1">Risk by Location</h3>
         <p className="text-sm text-ink-muted mb-4">Combined score from hazard severity and near-miss risk, highest first.</p>
         <div className="space-y-3">
@@ -412,18 +607,6 @@ function AnalysisTab({ reports, nearMisses, loading }) {
           ))}
         </div>
       </div>
-
-      {categoryStats.length > 0 && (
-        <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-ink mb-1">Near Misses by Category</h3>
-          <p className="text-sm text-ink-muted mb-4">Where the near-miss reports are clustering.</p>
-          <div className="space-y-3">
-            {categoryStats.map(([cat, count]) => (
-              <BarRow key={cat} label={cat} value={count} max={maxCategory} color={NEAR_MISS_COLOR} />
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -923,4 +1106,4 @@ export default function Safety({ user }) {
       )}
     </div>
   )
-}         
+}       
