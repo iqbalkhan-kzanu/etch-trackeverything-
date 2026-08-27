@@ -148,7 +148,7 @@ function computeMetrics(items = [], activity = {}) {
 
 function Card({ children, className = '' }) {
   return (
-    <section className={`rounded-2xl border border-line bg-white shadow-[0_1px_2px_rgba(20,24,28,0.04)] ${className}`}>
+    <section className={`rounded-[14px] border border-line bg-white shadow-[0_1px_2px_rgba(20,24,28,0.04)] ${className}`}>
       {children}
     </section>
   )
@@ -285,43 +285,90 @@ function TeamRow({ team }) {
 }
 
 function SeverityMatrix({ rows }) {
-  const maxOpen = Math.max(...rows.map((x) => x.open), 1)
+  const totalOpen = rows.reduce((sum, row) => sum + row.open, 0)
+  const totalOverdue = rows.reduce((sum, row) => sum + row.overdue, 0)
 
   return (
-    <div className="space-y-3">
-      {rows.map((s) => {
-        const pct = Math.max(4, (s.open / maxOpen) * 100)
-        const color = SEVERITY_COLOR[s.severity]
-
-        return (
-          <div key={s.severity}>
-            <div className="mb-1.5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
-                <span className="text-xs font-bold capitalize text-ink">{s.severity}</span>
-              </div>
-              <span className="font-mono text-[10px] text-muted">
-                {s.open} open · {s.overdue} overdue
-              </span>
-            </div>
-
-            <div className="relative h-7 overflow-hidden rounded-lg bg-soft">
-              <div
-                className="absolute inset-y-0 left-0 rounded-lg transition-all"
-                style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.88 }}
-              />
-              <div className="relative flex h-full items-center justify-between px-2.5">
-                <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-white mix-blend-difference">
-                  workload
-                </span>
-                <span className="font-mono text-[9px] font-bold text-ink">
-                  {s.avgDaysToClose !== null ? `${s.avgDaysToClose.toFixed(1)}d avg close` : 'No closure data'}
-                </span>
-              </div>
-            </div>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl border border-line bg-soft/70 p-3">
+          <p className="font-mono text-[8px] uppercase tracking-[0.14em] text-muted">Open exposure</p>
+          <div className="mt-1 flex items-end gap-2">
+            <span className="text-2xl font-black tracking-tight text-ink tabular-nums">{totalOpen}</span>
+            <span className="pb-0.5 text-[9px] text-muted">items</span>
           </div>
-        )
-      })}
+        </div>
+        <div className="rounded-xl border border-red/15 bg-red/5 p-3">
+          <p className="font-mono text-[8px] uppercase tracking-[0.14em] text-muted">Past deadline</p>
+          <div className="mt-1 flex items-end gap-2">
+            <span className="text-2xl font-black tracking-tight tabular-nums" style={{ color: COLOR.red }}>
+              {totalOverdue}
+            </span>
+            <span className="pb-0.5 text-[9px] text-muted">items</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-line">
+        <div className="grid grid-cols-[105px_1fr_82px] items-center border-b border-line bg-soft/70 px-3 py-2 font-mono text-[8px] uppercase tracking-[0.13em] text-muted">
+          <span>Severity</span>
+          <span>Open items</span>
+          <span className="text-right">Closure speed</span>
+        </div>
+
+        <div className="divide-y divide-line">
+          {rows.map((s) => {
+            const color = SEVERITY_COLOR[s.severity]
+            const share = totalOpen ? Math.round((s.open / totalOpen) * 100) : 0
+
+            return (
+              <div key={s.severity} className="grid grid-cols-[105px_1fr_82px] items-center gap-3 px-3 py-3.5 transition hover:bg-soft/50">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full ring-4"
+                      style={{ backgroundColor: color, ringColor: `${color}14` }}
+                    />
+                    <span className="text-xs font-bold capitalize text-ink">{s.severity}</span>
+                  </div>
+                  <div className="mt-1 font-mono text-[8px] uppercase tracking-wide text-muted">
+                    {s.overdue} overdue
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-mono text-[10px] font-bold tabular-nums text-ink">{s.open}</span>
+                    <span className="font-mono text-[8px] text-muted">{share}% of open</span>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-soft">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${Math.max(s.open ? 5 : 0, share)}%`, backgroundColor: color }}
+                    />
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <div className="text-sm font-black tabular-nums text-ink">
+                    {s.avgDaysToClose !== null ? `${s.avgDaysToClose.toFixed(1)}d` : '—'}
+                  </div>
+                  <div className="font-mono text-[8px] uppercase tracking-wide text-muted">avg. close</div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-4 pt-1">
+        {SEVERITY_ORDER.map((severity) => (
+          <span key={severity} className="flex items-center gap-1.5 font-mono text-[8px] uppercase tracking-wide text-muted">
+            <i className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: SEVERITY_COLOR[severity] }} />
+            {severity}
+          </span>
+        ))}
+      </div>
     </div>
   )
 }
@@ -427,11 +474,17 @@ export default function GovernanceAnalytics({ items = [], activity = {} }) {
   const activePct = m.totalItems ? Math.round((m.totalActive / m.totalItems) * 100) : 0
 
   return (
-    <div className="min-h-full bg-[#F8FAFB] p-4 sm:p-6 lg:p-8">
+    <div
+      className="min-h-full bg-[#F8FAFB] p-4 sm:p-6 lg:p-8"
+      style={{
+        fontFamily: '"IBM Plex Sans", "Aptos", "Segoe UI", sans-serif',
+        letterSpacing: '-0.01em',
+      }}
+    >
       <div className="mx-auto max-w-7xl space-y-6">
 
         {/* Command header */}
-        <div className="relative overflow-hidden rounded-2xl bg-[#14181C] p-6 text-white shadow-lg">
+        <div className="relative overflow-hidden rounded-[14px] bg-[#14181C] p-6 text-white shadow-lg">
           <div
             className="pointer-events-none absolute right-[-60px] top-[-80px] h-64 w-64 rounded-full opacity-20"
             style={{ background: `radial-gradient(circle, ${COLOR.blue}, transparent 68%)` }}
@@ -446,7 +499,7 @@ export default function GovernanceAnalytics({ items = [], activity = {} }) {
               </div>
               <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Governance Analytics</h2>
               <p className="mt-2 max-w-2xl text-sm text-gray-400">
-                A visual command view of accountability, closure velocity, deadline compliance and escalation pressure.
+                Accountability, deadline discipline, verified closure and escalation signals — in one view.
               </p>
             </div>
 
@@ -523,7 +576,7 @@ export default function GovernanceAnalytics({ items = [], activity = {} }) {
           <SectionHeader
             eyebrow="Portfolio health"
             title="Where the action load sits"
-            description="The same information is now represented as a visual status composition."
+            description="Portfolio state at a glance."
           />
 
           <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_220px]">
@@ -548,7 +601,7 @@ export default function GovernanceAnalytics({ items = [], activity = {} }) {
               </div>
               <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[9px] uppercase tracking-wide text-muted">
                 <span><i className="mr-1.5 inline-block h-2 w-2 rounded-full bg-green" />Verified closed</span>
-                <span><i className="mr-1.5 inline-block h-2 w-2 rounded-full bg-blue" />Active workload</span>
+                <span><i className="mr-1.5 inline-block h-2 w-2 rounded-full bg-blue" />Active active items</span>
                 <span><i className="mr-1.5 inline-block h-2 w-2 rounded-full bg-red" />Overdue {m.overdueCount}</span>
                 <span><i className="mr-1.5 inline-block h-2 w-2 rounded-full bg-amber" />Critical {m.criticalOpenCount}</span>
               </div>
@@ -573,7 +626,7 @@ export default function GovernanceAnalytics({ items = [], activity = {} }) {
             <SectionHeader
               eyebrow="Accountability"
               title="Team performance"
-              description="Workload, overdue pressure and closure health by team."
+              description="Active items, overdue pressure and closure health by team."
               right={<span className="rounded-full bg-soft px-2.5 py-1 font-mono text-[9px] text-muted">{m.byTeam.length} teams</span>}
             />
             <div className="mt-5 space-y-3">
@@ -588,8 +641,8 @@ export default function GovernanceAnalytics({ items = [], activity = {} }) {
           <Card className="p-5">
             <SectionHeader
               eyebrow="Risk distribution"
-              title="Severity workload"
-              description="Open volume, overdue exposure and average closure speed."
+              title="Severity active items"
+              description="Where unresolved items are concentrated and how quickly they are being cleared."
             />
             <div className="mt-5">
               {m.bySeverity.length ? (
@@ -642,45 +695,9 @@ export default function GovernanceAnalytics({ items = [], activity = {} }) {
           </Card>
         </div>
 
-        {/* Operating model */}
-        <Card className="overflow-hidden">
-          <div className="border-b border-line p-5">
-            <SectionHeader
-              eyebrow="Governance operating model"
-              title="From action creation to verified closure"
-              description="The workflow itself is represented as a visual control path."
-            />
-          </div>
 
-          <div className="grid md:grid-cols-4">
-            {[
-              { n: '01', title: 'OPEN', desc: 'Action logged with owner and deadline.', color: COLOR.muted },
-              { n: '02', title: 'IN PROGRESS', desc: 'Owner executes and records evidence.', color: COLOR.blue },
-              { n: '03', title: 'READY TO CLOSE', desc: 'Evidence submitted for independent verification.', color: COLOR.amber },
-              { n: '04', title: 'CLOSED', desc: 'Verifier confirms completion and closes the loop.', color: COLOR.green },
-            ].map((stage, i) => (
-              <div
-                key={stage.title}
-                className="relative border-b border-line p-5 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[9px] font-bold tracking-wider" style={{ color: stage.color }}>
-                    {stage.n}
-                  </span>
-                  {i < 3 && <span className="hidden text-muted md:block">→</span>}
-                </div>
-                <div className="mt-4 flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: stage.color }} />
-                  <span className="text-xs font-black tracking-wide text-ink">{stage.title}</span>
-                </div>
-                <p className="mt-2 text-[10px] leading-4 text-muted">{stage.desc}</p>
-              </div>
-            ))}
-          </div>
-        </Card>
 
       </div>
     </div>
   )
-}
-    
+}  
