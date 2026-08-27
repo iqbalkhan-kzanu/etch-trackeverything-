@@ -8,7 +8,7 @@ import SendBackModal from './SendBackModal'
 import SubmitForApprovalModal from './SubmitForApprovalModal'
 import GroupsList from './GroupsList'
 import SemiconductorPulse from './SemiconductorPulse'
-import { exportClosedItemsCSV, exportClosedItemsPDF } from '../lib/governanceReport'
+import { exportClosedItemsCSV, exportClosedItemsPDF } from './governanceReport'   
 
 const SOURCES = ['governance', 'audit', 'project', 'leadership_review', 'other']
 const STAGES = ['open', 'in_progress', 'ready_to_close', 'pending_approval', 'closed']
