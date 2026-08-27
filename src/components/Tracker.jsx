@@ -102,6 +102,28 @@ function formatTime(ts) {
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+// Scope filter used both for the currently-selected nav tab (My Tasks / My
+// Team / General) AND for the sidebar "Tasks Overview" breakdown, which
+// needs all three scopes computed independently of whichever tab is active.
+function computeScopedItems(navKey, items, user) {
+  return items.filter((i) => {
+    const participants = Array.isArray(i.participants) ? i.participants : []
+    const isCrossTeamParticipant = participants.some((p) => p.id === user?.id && p.team !== i.team)
+
+    if (navKey === 'mine') return i.owner_name === user?.name || isCrossTeamParticipant
+    if (navKey === 'general') return i.visibility === 'general'
+    if (navKey === 'team') {
+      const visibleToTeam = i.visibility === 'team' && i.team === user?.team
+      const pendingForManager =
+        i.status === 'pending_approval' &&
+        i.team === user?.team &&
+        user?.role === 'MANAGER'
+      return visibleToTeam || pendingForManager
+    }
+    return true
+  })
+}
+
 function StageBar({ status }) {
   const idx = STAGES.indexOf(status)
   const color = STATUS_STYLES[status].bar
@@ -395,18 +417,16 @@ function DonutChart({ segments, total, size = 116, thickness = 14 }) {
   )
 }
 
-function TasksOverviewCard({ counts, total }) {
+// Shows a fixed breakdown by SCOPE (My Tasks / My Team / General), computed
+// independently of which nav tab is currently selected — so the numbers no
+// longer change depending on which tab you're viewing.
+function TasksOverviewCard({ scopeCounts }) {
   const segments = [
-    { key: 'open', label: 'Open', color: STATUS_STYLES.open.top, value: counts.open },
-    { key: 'in_progress', label: 'In Progress', color: STATUS_STYLES.in_progress.top, value: counts.in_progress },
-    { key: 'ready_to_close', label: 'Ready to Close', color: STATUS_STYLES.ready_to_close.top, value: counts.ready_to_close },
-    { key: 'pending_approval', label: 'Pending', color: STATUS_STYLES.pending_approval.top, value: counts.pending_approval },
-    { key: 'closed', label: 'Closed', color: STATUS_STYLES.closed.top, value: counts.closed },
+    { key: 'mine', label: 'My Tasks', color: '#2B6CB0', value: scopeCounts.mine.total },
+    { key: 'team', label: 'My Team', color: '#7C5CBF', value: scopeCounts.team.total },
+    { key: 'general', label: 'General', color: '#D98C2B', value: scopeCounts.general.total },
   ]
-  const flags = [
-    { key: 'overdue', label: 'Overdue', color: OVERDUE_COLOR, value: counts.overdue },
-    { key: 'critical', label: 'Critical', color: CRITICAL_COLOR, value: counts.critical },
-  ]
+  const total = segments.reduce((sum, s) => sum + s.value, 0)
 
   return (
     <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
@@ -414,18 +434,20 @@ function TasksOverviewCard({ counts, total }) {
       <div className="relative w-[116px] h-[116px] mx-auto mb-4">
         <DonutChart segments={segments} total={total} />
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-[9px] uppercase tracking-wider text-white/40">Total Tasks</span>
+          <span className="text-[9px] uppercase tracking-wider text-white/40">All Items</span>
           <span className="text-xl font-bold text-white">{total}</span>
         </div>
       </div>
-      <div className="space-y-2">
-        {[...segments, ...flags].map((s) => (
+      <div className="space-y-2.5">
+        {segments.map((s) => (
           <div key={s.key} className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-2 text-white/70">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
               {s.label}
             </span>
-            <span className="font-semibold text-white">{s.value}</span>
+            <span className="font-semibold text-white">
+              {scopeCounts[s.key].open} open <span className="text-white/40">/ {s.value}</span>
+            </span>
           </div>
         ))}
       </div>
@@ -990,22 +1012,19 @@ export default function Tracker({ user, onLogout }) {
     loadItems()
   }
 
-  const scopedItems = items.filter((i) => {
-    const participants = Array.isArray(i.participants) ? i.participants : []
-    const isCrossTeamParticipant = participants.some((p) => p.id === user?.id && p.team !== i.team)
+  const scopedItems = computeScopedItems(nav, items, user)
 
-    if (nav === 'mine') return i.owner_name === user?.name || isCrossTeamParticipant
-    if (nav === 'general') return i.visibility === 'general'
-    if (nav === 'team') {
-      const visibleToTeam = i.visibility === 'team' && i.team === user?.team
-      const pendingForManager =
-        i.status === 'pending_approval' &&
-        i.team === user?.team &&
-        user?.role === 'MANAGER'
-      return visibleToTeam || pendingForManager
-    }
-    return true
-  })
+  // Independent, per-scope item sets used only for the sidebar "Tasks
+  // Overview" card, so its numbers stay fixed regardless of which nav tab
+  // is currently active.
+  const mineItems = computeScopedItems('mine', items, user)
+  const teamItems = computeScopedItems('team', items, user)
+  const generalItems = computeScopedItems('general', items, user)
+  const scopeCounts = {
+    mine: { open: mineItems.filter((i) => i.status !== 'closed').length, total: mineItems.length },
+    team: { open: teamItems.filter((i) => i.status !== 'closed').length, total: teamItems.length },
+    general: { open: generalItems.filter((i) => i.status !== 'closed').length, total: generalItems.length },
+  }
 
   const filtered = scopedItems.filter((i) => {
     if (filterStatus !== 'all' && i.status !== filterStatus) return false
@@ -1421,7 +1440,7 @@ export default function Tracker({ user, onLogout }) {
           </nav>
 
           <div className="mt-6">
-            <TasksOverviewCard counts={counts} total={totalScoped} />
+            <TasksOverviewCard scopeCounts={scopeCounts} />
           </div>
         </div>
         <div className="border-t border-white/10 pt-4">
@@ -1699,4 +1718,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}      
+}     
