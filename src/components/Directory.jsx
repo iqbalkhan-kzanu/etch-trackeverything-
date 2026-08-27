@@ -70,12 +70,30 @@ export default function Directory({ user, onMessage, onAssign }) {
 
     load()
 
-    const interval = setInterval(() => {
-      loadUnreadMessages()
-      loadProfiles({ silent: true }) // picks up other people's availability changes
-    }, 5000)
+    // Profile fields (availability, role, etc.) don't have a per-user filter
+    // we can subscribe to cheaply here, so keep a slow poll just for those.
+    const profileInterval = setInterval(() => {
+      loadProfiles({ silent: true })
+    }, 15000)
 
-    return () => clearInterval(interval)
+    return () => clearInterval(profileInterval)
+  }, [user?.id])
+
+  // Realtime: unread badges update the instant a message arrives or gets
+  // marked read (e.g. from ChatModal), no polling delay.
+  useEffect(() => {
+    if (!user?.id) return
+
+    const channel = supabase
+      .channel(`directory-unread-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'messages', filter: `recipient_id=eq.${user.id}` },
+        () => loadUnreadMessages()
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [user?.id])
 
   // Current user's own profile — used to check manager status and team

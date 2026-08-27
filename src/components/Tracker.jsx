@@ -649,6 +649,21 @@ export default function Tracker({ user, onLogout }) {
     return () => clearInterval(interval)
   }, [user?.id])
 
+  // Realtime: unread inbox badge updates instantly on new/read messages,
+  // no need to wait for the 5s poll above (kept as a safety-net fallback).
+  useEffect(() => {
+    if (!user?.id) return
+    const channel = supabase
+      .channel(`tracker-inbox-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'messages', filter: `recipient_id=eq.${user.id}` },
+        () => loadUnreadMessages()
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [user?.id])
+
   function goTo(key) {
     setNav(key)
     localStorage.setItem(NAV_STORAGE_KEY, key)
@@ -657,6 +672,14 @@ export default function Tracker({ user, onLogout }) {
       localStorage.setItem(`etch_general_last_viewed_${user?.id}`, new Date().toISOString())
       setHazardUnseen(0)
     }
+  }
+
+  // Called when a message in ChatModal is tied to an action item — jumps
+  // straight to the right nav tab and focuses that item's detail card.
+  function openMessageTarget(itemId, targetNav) {
+    setChatUser(null)
+    if (targetNav) goTo(targetNav)
+    setFocusedItemId(itemId)
   }
 
   async function handleCreate(e) {
@@ -686,6 +709,8 @@ export default function Tracker({ user, onLogout }) {
           sender_id: user?.id,
           recipient_id: p.id,
           body: `${user?.name} added you to the task "${form.title}" (due ${form.deadline}).`,
+          item_id: data[0].id,
+          target_nav: p.team === form.team ? 'team' : 'mine',
         }])
         if (msgError) console.error('participant notify failed:', msgError.message)
       }
@@ -783,6 +808,8 @@ export default function Tracker({ user, onLogout }) {
         sender_id: user?.id,
         recipient_id: managerProfile.id,
         body: `${user?.name} submitted "${item.title}" for your approval (due ${item.deadline}).`,
+        item_id: item.id,
+        target_nav: 'team',
       }])
       if (msgError) console.error('notify manager failed:', msgError.message)
     } else if (mgrError || !managerProfile) {
@@ -819,6 +846,8 @@ export default function Tracker({ user, onLogout }) {
         sender_id: user?.id,
         recipient_id: ownerProfile.id,
         body: `${user?.name} approved and closed "${item.title}".`,
+        item_id: item.id,
+        target_nav: 'mine',
       }])
       if (msgError) console.error('notify owner failed:', msgError.message)
     }
@@ -840,6 +869,8 @@ export default function Tracker({ user, onLogout }) {
         sender_id: user?.id,
         recipient_id: ownerProfile.id,
         body: `${user?.name} sent "${item.title}" back for re-examination: ${note}`,
+        item_id: item.id,
+        target_nav: 'mine',
       }])
       if (msgError) console.error('notify owner failed:', msgError.message)
     }
@@ -867,6 +898,8 @@ export default function Tracker({ user, onLogout }) {
         sender_id: user?.id,
         recipient_id: managerProfile.id,
         body: `${user?.name} flagged "${item.title}" as blocked: ${reason}`,
+        item_id: item.id,
+        target_nav: 'team',
       }])
       if (msgError) console.error('notify manager failed:', msgError.message)
     }
@@ -945,6 +978,8 @@ export default function Tracker({ user, onLogout }) {
           sender_id: user?.id,
           recipient_id: profile.id,
           body: `${user?.name} mentioned you on "${item.title}": ${text}`,
+          item_id: item.id,
+          target_nav: profile.name === item.owner_name ? 'mine' : 'team',
         }])
         if (msgError) console.error('mention notify failed:', msgError.message)
       }
@@ -1303,6 +1338,7 @@ export default function Tracker({ user, onLogout }) {
       loadUnreadMessages()
     }}
     onMessagesRead={loadUnreadMessages}
+    onOpenItem={openMessageTarget}
   />
 )}
 
@@ -1663,4 +1699,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}     
+}      

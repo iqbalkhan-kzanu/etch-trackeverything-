@@ -29,8 +29,11 @@ function XIcon({ className }) {
 function SendIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4 20-7Z" /><path d="M11 13 22 2" /></svg>)
 }
+function TaskLinkIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M8 10h8M8 14h5" /></svg>)
+}
 
-export default function ChatModal({ currentUser, recipient, onClose, onMessagesRead }) {
+export default function ChatModal({ currentUser, recipient, onClose, onMessagesRead, onOpenItem }) {
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(true)
@@ -61,6 +64,28 @@ export default function ChatModal({ currentUser, recipient, onClose, onMessagesR
 
   useEffect(() => { loadMessages() }, [recipient.id])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+
+  // Realtime: any new message between these two people (either direction)
+  // appears instantly without waiting for a resend/reopen.
+  useEffect(() => {
+    const channel = supabase
+      .channel(`chat-${currentUser.id}-${recipient.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => {
+          const m = payload.new
+          const isThisThread =
+            (m.sender_id === currentUser.id && m.recipient_id === recipient.id) ||
+            (m.sender_id === recipient.id && m.recipient_id === currentUser.id)
+          if (isThisThread) loadMessages()
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recipient.id, currentUser.id])
 
   async function handleSend(e) {
     e.preventDefault()
@@ -126,6 +151,33 @@ export default function ChatModal({ currentUser, recipient, onClose, onMessagesR
                 <div className="space-y-3">
                   {group.items.map((m) => {
                     const isMe = m.sender_id === currentUser.id
+
+                    // System-generated messages tied to an action item render
+                    // as a tappable card that jumps straight to that item.
+                    if (m.item_id) {
+                      return (
+                        <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[75%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                            <button
+                              type="button"
+                              onClick={() => onOpenItem?.(m.item_id, m.target_nav)}
+                              className={`text-left rounded-2xl px-4 py-2.5 text-sm border transition-colors w-full ${
+                                isMe
+                                  ? 'bg-accent-blue/10 border-accent-blue/30 hover:border-accent-blue text-ink rounded-tr-sm'
+                                  : 'bg-line/50 border-line hover:border-accent-blue text-ink rounded-tl-sm'
+                              }`}
+                            >
+                              <p>{m.body}</p>
+                              <p className="flex items-center gap-1 text-[10px] font-semibold mt-1.5" style={{ color: '#2B6CB0' }}>
+                                <TaskLinkIcon className="w-3 h-3" /> View task →
+                              </p>
+                            </button>
+                            <p className="text-[10px] text-ink-muted mt-1">{formatClock(m.created_at)}</p>
+                          </div>
+                        </div>
+                      )
+                    }
+
                     return (
                       <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[75%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
@@ -162,4 +214,4 @@ export default function ChatModal({ currentUser, recipient, onClose, onMessagesR
       </div>
     </div>
   )
-}       
+}     
