@@ -55,6 +55,8 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
       sender_id: mentor.id,
       recipient_id: assignee.id,
       body: `Your manager ${mentor.name} has assigned this work to you: "${title.trim()}" — due ${deadline} · severity: ${severity}.`,
+      item_id: data?.[0]?.id ?? null,
+      target_nav: 'mine',
     }])
 
     setSubmitting(false)
@@ -112,4 +114,4 @@ export default function AssignWorkModal({ mentor, assignee, onCancel, onAssigned
       </div>
     </div>
   )
-}     
+}      
