@@ -8,6 +8,7 @@ import SendBackModal from './SendBackModal'
 import SubmitForApprovalModal from './SubmitForApprovalModal'
 import GroupsList from './GroupsList'
 import SemiconductorPulse from './SemiconductorPulse'
+import { exportClosedItemsCSV, exportClosedItemsPDF } from '../lib/governanceReport'
 
 const SOURCES = ['governance', 'audit', 'project', 'leadership_review', 'other']
 const STAGES = ['open', 'in_progress', 'ready_to_close', 'pending_approval', 'closed']
@@ -537,6 +538,7 @@ export default function Tracker({ user, onLogout }) {
   const [hazardUnseen, setHazardUnseen] = useState(0)
   const [hazardToast, setHazardToast] = useState(null)
   const [focusedItemId, setFocusedItemId] = useState(null)
+  const [exportingReport, setExportingReport] = useState(null)
   const [form, setForm] = useState({
     title: '', description: '', owner_name: user?.name || '', team: user?.team || '', source: 'project', deadline: '', visibility: 'team', severity: 'medium',
   })
@@ -702,6 +704,29 @@ export default function Tracker({ user, onLogout }) {
     setChatUser(null)
     if (targetNav) goTo(targetNav)
     setFocusedItemId(itemId)
+  }
+
+  // Governance report exports — query every closed item directly regardless
+  // of which nav scope is currently loaded into `items`, so the report is
+  // always complete rather than limited to whatever's on screen.
+  async function fetchAllClosedItems() {
+    const { data, error } = await supabase.from('action_items').select('*').eq('status', 'closed')
+    if (error) { setError(error.message); return null }
+    return data || []
+  }
+
+  async function handleExportCSV() {
+    setExportingReport('csv')
+    const closed = await fetchAllClosedItems()
+    if (closed) exportClosedItemsCSV(closed)
+    setExportingReport(null)
+  }
+
+  async function handleExportPDF() {
+    setExportingReport('pdf')
+    const closed = await fetchAllClosedItems()
+    if (closed) exportClosedItemsPDF(closed)
+    setExportingReport(null)
   }
 
   async function handleCreate(e) {
@@ -1461,9 +1486,27 @@ export default function Tracker({ user, onLogout }) {
             <button onClick={onLogout} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted border border-line rounded-md px-3 py-2">Log Out</button>
           </div>
           {nav !== 'safety' && nav !== 'directory' && nav !== 'groups' && nav !== 'pulse' && (     
-            <button onClick={() => setShowForm((s) => !s)} className="bg-accent-blue text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-blue/90 transition-colors">
-              {showForm ? 'Cancel' : '+ New Action Item'}
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="flex gap-2">
+                <button
+                  onClick={handleExportCSV}
+                  disabled={exportingReport !== null}
+                  className="border border-line text-sm px-3 py-2.5 rounded-lg hover:bg-line/40 transition-colors disabled:opacity-50 whitespace-nowrap"
+                >
+                  {exportingReport === 'csv' ? 'Exporting…' : 'Export CSV'}
+                </button>
+                <button
+                  onClick={handleExportPDF}
+                  disabled={exportingReport !== null}
+                  className="border border-line text-sm px-3 py-2.5 rounded-lg hover:bg-line/40 transition-colors disabled:opacity-50 whitespace-nowrap"
+                >
+                  {exportingReport === 'pdf' ? 'Exporting…' : 'Governance Report (PDF)'}
+                </button>
+              </div>
+              <button onClick={() => setShowForm((s) => !s)} className="bg-accent-blue text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-blue/90 transition-colors whitespace-nowrap">
+                {showForm ? 'Cancel' : '+ New Action Item'}
+              </button>
+            </div>
           )}
         </div>
 
@@ -1718,4 +1761,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}     
+}      
