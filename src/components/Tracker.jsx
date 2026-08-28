@@ -645,20 +645,21 @@ export default function Tracker({ user, onLogout }) {
     return () => clearInterval(interval)
   }, [user?.id])
 
-  // Realtime: unread inbox badge updates instantly on new/read messages,
-  // no need to wait for the 5s poll above (kept as a safety-net fallback).
-  useEffect(() => {
-    if (!user?.id) return
-    const channel = supabase
-      .channel(`tracker-inbox-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'messages', filter: `recipient_id=eq.${user.id}` },
-        () => loadUnreadMessages()
-      )
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [user?.id])
+  // Realtime temporarily disabled (was causing repeated failed websocket
+  // auth + connection exhaustion under concurrent load). Relying on the
+  // 5s poll above until Replication + RLS are fixed on `messages`.
+  // useEffect(() => {
+  //   if (!user?.id) return
+  //   const channel = supabase
+  //     .channel(`tracker-inbox-${user.id}`)
+  //     .on(
+  //       'postgres_changes',
+  //       { event: '*', schema: 'public', table: 'messages', filter: `recipient_id=eq.${user.id}` },
+  //       () => loadUnreadMessages()
+  //     )
+  //     .subscribe()
+  //   return () => { supabase.removeChannel(channel) }
+  // }, [user?.id])
 
   function goTo(key) {
     if (key === 'analytics' && user?.role !== 'MANAGER') return
@@ -1746,4 +1747,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}           
+}      

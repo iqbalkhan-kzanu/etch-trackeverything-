@@ -79,22 +79,19 @@ export default function Directory({ user, onMessage, onAssign }) {
     return () => clearInterval(profileInterval)
   }, [user?.id])
 
-  // Realtime: unread badges update the instant a message arrives or gets
-  // marked read (e.g. from ChatModal), no polling delay.
-  useEffect(() => {
-    if (!user?.id) return
-
-    const channel = supabase
-      .channel(`directory-unread-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'messages', filter: `recipient_id=eq.${user.id}` },
-        () => loadUnreadMessages()
-      )
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
-  }, [user?.id])
+  // Realtime temporarily disabled (connection exhaustion under load).
+  // useEffect(() => {
+  //   if (!user?.id) return
+  //   const channel = supabase
+  //     .channel(`directory-unread-${user.id}`)
+  //     .on(
+  //       'postgres_changes',
+  //       { event: '*', schema: 'public', table: 'messages', filter: `recipient_id=eq.${user.id}` },
+  //       () => loadUnreadMessages()
+  //     )
+  //     .subscribe()
+  //   return () => { supabase.removeChannel(channel) }
+  // }, [user?.id])
 
   // Current user's own profile — used to check manager status and team
   const own = profiles.find((p) => p.id === user?.id)
@@ -488,4 +485,4 @@ export default function Directory({ user, onMessage, onAssign }) {
 
     </div>
   )
-}    
+}   
