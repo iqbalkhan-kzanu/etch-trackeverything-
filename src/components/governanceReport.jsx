@@ -93,6 +93,16 @@ export function exportGovernanceReportCSV(items) {
   URL.revokeObjectURL(url)
 }
 
+// Fixed 3-page structure:
+//   Page 1 — summary: closed-by-team + open-by-team tables
+//   Page 2 — closed tasks detail (incl. who closed it + completion note)
+//   Page 3 — open tasks detail (incl. current status + blocked flag)
+// Long tables still wrap onto continuation pages on their own (that's
+// normal table pagination, not extra report pages) — what this removes is
+// the old one-full-page-per-closed-item loop, which is what pushed a
+// handful of closed items into a 7+ page report. Per-item timelines are no
+// longer rendered as full pages; the completion note is kept as a column
+// in the closed-tasks table instead.
 export function exportGovernanceReportPDF(items) {
   const closed = items.filter((i) => i.status === 'closed')
   const open = items.filter((i) => i.status !== 'closed')
@@ -103,7 +113,7 @@ export function exportGovernanceReportPDF(items) {
 
   const doc = new jsPDF()
 
-  // --- Cover / summary page ---
+  // --- Page 1: summary ---
   doc.setFontSize(16)
   doc.text('Governance Report', 14, 18)
   doc.setFontSize(10)
@@ -136,24 +146,29 @@ export function exportGovernanceReportPDF(items) {
     headStyles: { fillColor: OPEN_COLOR },
   })
 
-  // --- Closed tasks detail table, grouped by team ---
+  // --- Page 2: closed tasks detail, grouped by team, notes included ---
   doc.addPage()
   doc.setFontSize(14)
   doc.text('Closed Tasks — Detail', 14, 18)
   autoTable(doc, {
     startY: 24,
-    head: [['Team', 'Title', 'Owner', 'Severity', 'Deadline', 'Closed By', 'Closed At']],
+    head: [['Team', 'Title', 'Owner', 'Severity', 'Deadline', 'Closed By', 'Closed At', 'Completion Note']],
     body: closedTeams.flatMap((team) =>
       closedByTeam[team].map((item) => {
         const snap = item.close_snapshot || {}
-        return [team, item.title, item.owner_name, item.severity, item.deadline, snap.closed_by || '', snap.closed_at ? new Date(snap.closed_at).toLocaleDateString() : '']
+        return [
+          team, item.title, item.owner_name, item.severity, item.deadline,
+          snap.closed_by || '', snap.closed_at ? new Date(snap.closed_at).toLocaleDateString() : '',
+          snap.completion_note || '',
+        ]
       })
     ),
-    styles: { fontSize: 8 },
+    styles: { fontSize: 8, cellWidth: 'wrap' },
+    columnStyles: { 7: { cellWidth: 55 } },
     headStyles: { fillColor: CLOSED_COLOR },
   })
 
-  // --- Open tasks detail table, grouped by team ---
+  // --- Page 3: open tasks detail, grouped by team ---
   doc.addPage()
   doc.setFontSize(14)
   doc.text('Open Tasks — Detail', 14, 18)
@@ -169,35 +184,5 @@ export function exportGovernanceReportPDF(items) {
     headStyles: { fillColor: OPEN_COLOR },
   })
 
-  // --- One detail page per closed item (completion note + full timeline) ---
-  closed.forEach((item) => {
-    doc.addPage()
-    doc.setFontSize(13)
-    doc.text(item.title, 14, 18)
-    doc.setFontSize(9)
-    doc.text(`Owner: ${item.owner_name}  ·  Team: ${item.team}  ·  Severity: ${item.severity}`, 14, 26)
-    doc.text(`Source: ${item.source}  ·  Deadline: ${item.deadline}`, 14, 32)
-    const snap = item.close_snapshot || {}
-    let y = 42
-    if (snap.completion_note) {
-      doc.setFontSize(10)
-      doc.text('Completion Note:', 14, y); y += 6
-      doc.setFontSize(9)
-      const lines = doc.splitTextToSize(snap.completion_note, 180)
-      doc.text(lines, 14, y); y += lines.length * 5 + 4
-    }
-    if (Array.isArray(snap.timeline) && snap.timeline.length) {
-      doc.setFontSize(10)
-      doc.text('Timeline:', 14, y); y += 6
-      doc.setFontSize(8)
-      snap.timeline.forEach((e) => {
-        const line = `${new Date(e.created_at).toLocaleString()} — ${e.actor}: ${e.action}${e.note ? ' — ' + e.note : ''}`
-        const lines = doc.splitTextToSize(line, 180)
-        doc.text(lines, 14, y)
-        y += lines.length * 4.5
-      })
-    }
-  })
-
   doc.save(`governance-report-${new Date().toISOString().slice(0, 10)}.pdf`)
-}    
+}       
