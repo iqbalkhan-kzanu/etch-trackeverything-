@@ -406,15 +406,15 @@ function TasksOverviewCard({ scopeCounts, onSelect }) {
   ]
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-tl-3xl rounded-br-3xl rounded-tr-lg rounded-bl-lg p-4 mb-6">
+    <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
       <p className="text-sm font-semibold text-white mb-3">Tasks Overview</p>
-      <div className="space-y-1.5">
+      <div className="space-y-1">
         {rows.map((r) => (
           <button
             key={r.key}
             type="button"
             onClick={() => onSelect(r.key)}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-full bg-white/5 hover:bg-white/15 transition-colors text-left"
+            className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-white/10 transition-colors text-left"
           >
             <span className="flex items-center gap-2 text-sm text-white/70">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
@@ -936,20 +936,6 @@ export default function Tracker({ user, onLogout }) {
     loadItems()
   }
 
-  // Lets a manager delete an item ONLY if they're the one who assigned it
-  // via AssignWorkModal (item.assigned_by_mentor === their own name). Any
-  // other item — including things the manager just happens to see under
-  // "My Team" — is left alone.
-  async function deleteAssignedItem(item) {
-    if (item.assigned_by_mentor !== user?.name) return
-    const confirmed = window.confirm(`Delete "${item.title}"? This can't be undone.`)
-    if (!confirmed) return
-    await supabase.from('item_activity').delete().eq('item_id', item.id)
-    const { error } = await supabase.from('action_items').delete().eq('id', item.id)
-    if (error) { setError(error.message); return }
-    loadItems()
-  }
-
   function toggleExpanded(id) { setExpanded((prev) => ({ ...prev, [id]: !prev[id] })) }
 
   function openMentorEditor(item) {
@@ -1191,24 +1177,13 @@ export default function Tracker({ user, onLogout }) {
                 </button>
               )
             )}
-            {isTeamManager && (
-              <button
-                onClick={() => (isEditingMentor ? setMentorEditing((p) => ({ ...p, [item.id]: false })) : openMentorEditor(item))}
-                className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap text-white transition-colors"
-                style={{ backgroundColor: isEditingMentor ? '#382854' : MENTOR_DARK }}
-              >
-                Mentor {item.mentor_comment ? '💬' : ''}
-              </button>
-            )}
-            {item.assigned_by_mentor === user?.name && item.status !== 'closed' && (
-              <button
-                onClick={() => deleteAssignedItem(item)}
-                title="Delete this assigned task"
-                className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap text-white bg-accent-red hover:bg-accent-red/90 transition-colors"
-              >
-                🗑 Delete
-              </button>
-            )}
+            <button
+              onClick={() => (isEditingMentor ? setMentorEditing((p) => ({ ...p, [item.id]: false })) : openMentorEditor(item))}
+              className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap text-white transition-colors"
+              style={{ backgroundColor: isEditingMentor ? '#382854' : MENTOR_DARK }}
+            >
+              Mentor {item.mentor_comment ? '💬' : ''}
+            </button>
             <button onClick={() => toggleExpanded(item.id)} className="font-mono text-[11px] uppercase tracking-wider text-white rounded-md px-2.5 py-1.5 whitespace-nowrap bg-ink hover:bg-ink/90 transition-colors">
               {isOpen ? 'Hide' : 'Timeline'} ({entries.length})
             </button>
@@ -1771,4 +1746,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}         
+}           
