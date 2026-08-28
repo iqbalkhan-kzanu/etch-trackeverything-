@@ -120,7 +120,11 @@ function computeScopedItems(navKey, items, user) {
         i.status === 'pending_approval' &&
         i.team === user?.team &&
         user?.role === 'MANAGER'
-      return visibleToTeam || pendingForManager
+      // Anything assigned by a manager/mentor to someone on this team should
+      // always surface under "My Team" — for the assignee AND for the
+      // manager — regardless of what visibility it was created with.
+      const assignedWithinTeam = !!i.assigned_by_mentor && i.team === user?.team
+      return visibleToTeam || pendingForManager || assignedWithinTeam
     }
     return true
   })
@@ -389,39 +393,14 @@ function AlertTriangleStatIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 2 20h20L12 3Z" /><path d="M12 10v4M12 17h.01" /></svg>)
 }
 
-function DonutChart({ segments, total, size = 116, thickness = 14 }) {
-  const radius = (size - thickness) / 2
-  const circumference = 2 * Math.PI * radius
-  let cumulativeFraction = 0
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={thickness} />
-      {segments.map((s) => {
-        if (!s.value || total === 0) return null
-        const frac = s.value / total
-        const dash = frac * circumference
-        const offset = -cumulativeFraction * circumference
-        cumulativeFraction += frac
-        return (
-          <circle
-            key={s.key}
-            cx={size / 2} cy={size / 2} r={radius}
-            fill="none"
-            stroke={s.color}
-            strokeWidth={thickness}
-            strokeDasharray={`${dash} ${circumference - dash}`}
-            strokeDashoffset={offset}
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          />
-        )
-      })}
-    </svg>
-  )
-}
-
 // Shows a fixed breakdown by SCOPE (My Tasks / My Team / General), computed
 // independently of which nav tab is currently selected — so the numbers no
 // longer change depending on which tab you're viewing.
+//
+// NOTE: this replaces the old donut-chart version with a simple segmented
+// bar + count list. This is a placeholder swap — happy to change the shape
+// of this (sparkline, trend, list of just overdue/critical, etc.) once you
+// tell me what you'd actually like to see here instead.
 function TasksOverviewCard({ scopeCounts }) {
   const segments = [
     { key: 'mine', label: 'My Tasks', color: '#2B6CB0', value: scopeCounts.mine.total },
@@ -432,14 +411,24 @@ function TasksOverviewCard({ scopeCounts }) {
 
   return (
     <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
-      <p className="text-sm font-semibold text-white mb-4">Tasks Overview</p>
-      <div className="relative w-[116px] h-[116px] mx-auto mb-4">
-        <DonutChart segments={segments} total={total} />
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-[9px] uppercase tracking-wider text-white/40">All Items</span>
-          <span className="text-xl font-bold text-white">{total}</span>
-        </div>
+      <div className="flex items-baseline justify-between mb-3">
+        <p className="text-sm font-semibold text-white">Tasks Overview</p>
+        <span className="text-xs text-white/40">{total} total</span>
       </div>
+
+      <div className="flex w-full h-2 rounded-full overflow-hidden bg-white/10 mb-4">
+        {segments.map((s) => (
+          <div
+            key={s.key}
+            className="h-full"
+            style={{
+              width: total > 0 ? `${(s.value / total) * 100}%` : 0,
+              backgroundColor: s.color,
+            }}
+          />
+        ))}
+      </div>
+
       <div className="space-y-2.5">
         {segments.map((s) => (
           <div key={s.key} className="flex items-center justify-between text-xs">
@@ -690,6 +679,7 @@ export default function Tracker({ user, onLogout }) {
   }, [user?.id])
 
   function goTo(key) {
+    if (key === 'analytics' && user?.role !== 'MANAGER') return
     setNav(key)
     localStorage.setItem(NAV_STORAGE_KEY, key)
     setMobileNavOpen(false)
@@ -1438,7 +1428,7 @@ export default function Tracker({ user, onLogout }) {
             )}
             {navItem('team', 'My Team', <TeamIcon className="w-4 h-4" />)}
             {navItem('safety', 'Safety at Site', <ShieldNavIcon className="w-4 h-4" />)}
-            {navItem('analytics', 'Governance Analytics', <AlertTriangleStatIcon className="w-4 h-4" />)}
+            {user?.role === 'MANAGER' && navItem('analytics', 'Governance Analytics', <AlertTriangleStatIcon className="w-4 h-4" />)}
             {navItem(
               'directory',
               <span className="flex items-center gap-2">
@@ -1526,7 +1516,16 @@ export default function Tracker({ user, onLogout }) {
           ) : nav === 'pulse' ? (
             <SemiconductorPulse />
           ) : nav === 'analytics' ? (
-            <GovernanceAnalytics items={items} activity={activity} />
+            user?.role === 'MANAGER' ? (
+              <GovernanceAnalytics
+                items={items.filter((i) => i.team === user?.team)}
+                activity={activity}
+              />
+            ) : (
+              <div className="border border-dashed border-line rounded-xl p-10 text-center bg-surface">
+                <p className="text-ink font-medium">Governance Analytics is only available to managers.</p>
+              </div>
+            )
           ) : (      
             <>
               {nav === 'general' && (
@@ -1765,4 +1764,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}    
+}     
