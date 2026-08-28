@@ -395,51 +395,33 @@ function AlertTriangleStatIcon({ className }) {
 
 // Shows a fixed breakdown by SCOPE (My Tasks / My Team / General), computed
 // independently of which nav tab is currently selected — so the numbers no
-// longer change depending on which tab you're viewing.
-//
-// NOTE: this replaces the old donut-chart version with a simple segmented
-// bar + count list. This is a placeholder swap — happy to change the shape
-// of this (sparkline, trend, list of just overdue/critical, etc.) once you
-// tell me what you'd actually like to see here instead.
-function TasksOverviewCard({ scopeCounts }) {
-  const segments = [
-    { key: 'mine', label: 'My Tasks', color: '#2B6CB0', value: scopeCounts.mine.total },
-    { key: 'team', label: 'My Team', color: '#7C5CBF', value: scopeCounts.team.total },
-    { key: 'general', label: 'General', color: '#D98C2B', value: scopeCounts.general.total },
+// longer change depending on which tab you're viewing. Each row is a single,
+// unambiguous total (no open/total pairing to misread) and jumps to that
+// scope's nav tab when clicked.
+function TasksOverviewCard({ scopeCounts, onSelect }) {
+  const rows = [
+    { key: 'mine', label: 'My Tasks', color: '#2B6CB0' },
+    { key: 'team', label: 'My Team', color: '#7C5CBF' },
+    { key: 'general', label: 'General', color: '#D98C2B' },
   ]
-  const total = segments.reduce((sum, s) => sum + s.value, 0)
 
   return (
     <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
-      <div className="flex items-baseline justify-between mb-3">
-        <p className="text-sm font-semibold text-white">Tasks Overview</p>
-        <span className="text-xs text-white/40">{total} total</span>
-      </div>
-
-      <div className="flex w-full h-2 rounded-full overflow-hidden bg-white/10 mb-4">
-        {segments.map((s) => (
-          <div
-            key={s.key}
-            className="h-full"
-            style={{
-              width: total > 0 ? `${(s.value / total) * 100}%` : 0,
-              backgroundColor: s.color,
-            }}
-          />
-        ))}
-      </div>
-
-      <div className="space-y-2.5">
-        {segments.map((s) => (
-          <div key={s.key} className="flex items-center justify-between text-xs">
-            <span className="flex items-center gap-2 text-white/70">
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-              {s.label}
+      <p className="text-sm font-semibold text-white mb-3">Tasks Overview</p>
+      <div className="space-y-1">
+        {rows.map((r) => (
+          <button
+            key={r.key}
+            type="button"
+            onClick={() => onSelect(r.key)}
+            className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-white/10 transition-colors text-left"
+          >
+            <span className="flex items-center gap-2 text-sm text-white/70">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
+              {r.label}
             </span>
-            <span className="font-semibold text-white">
-              {scopeCounts[s.key].open} open <span className="text-white/40">/ {s.value}</span>
-            </span>
-          </div>
+            <span className="text-lg font-bold text-white tabular-nums">{scopeCounts[r.key].total}</span>
+          </button>
         ))}
       </div>
     </div>
@@ -1457,7 +1439,7 @@ export default function Tracker({ user, onLogout }) {
           </nav>
 
           <div className="mt-6">
-            <TasksOverviewCard scopeCounts={scopeCounts} />
+            <TasksOverviewCard scopeCounts={scopeCounts} onSelect={goTo} />
           </div>
         </div>
         <div className="border-t border-white/10 pt-4">
@@ -1764,4 +1746,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}    
+}         
