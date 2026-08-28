@@ -9,7 +9,7 @@ import SubmitForApprovalModal from './SubmitForApprovalModal'
 import GroupsList from './GroupsList'
 import SemiconductorPulse from './SemiconductorPulse'
 import GovernanceAnalytics from './GovernanceAnalytics'
-import { exportClosedItemsCSV, exportClosedItemsPDF } from './governanceReport'
+import { exportGovernanceReportCSV, exportGovernanceReportPDF } from './governanceReport'
 
 const SOURCES = ['governance', 'audit', 'project', 'leadership_review', 'other']
 const STAGES = ['open', 'in_progress', 'ready_to_close', 'pending_approval', 'closed']
@@ -697,26 +697,26 @@ export default function Tracker({ user, onLogout }) {
     setFocusedItemId(itemId)
   }
 
-  // Governance report exports — query every closed item directly regardless
-  // of which nav scope is currently loaded into `items`, so the report is
-  // always complete rather than limited to whatever's on screen.
-  async function fetchAllClosedItems() {
-    const { data, error } = await supabase.from('action_items').select('*').eq('status', 'closed')
+  // Governance report exports — query every item directly (open AND closed)
+  // regardless of which nav scope is currently loaded into `items`, so the
+  // report is always complete rather than limited to whatever's on screen.
+  async function fetchAllItemsForReport() {
+    const { data, error } = await supabase.from('action_items').select('*')
     if (error) { setError(error.message); return null }
     return data || []
   }
 
   async function handleExportCSV() {
     setExportingReport('csv')
-    const closed = await fetchAllClosedItems()
-    if (closed) exportClosedItemsCSV(closed)
+    const all = await fetchAllItemsForReport()
+    if (all) exportGovernanceReportCSV(all)
     setExportingReport(null)
   }
 
   async function handleExportPDF() {
     setExportingReport('pdf')
-    const closed = await fetchAllClosedItems()
-    if (closed) exportClosedItemsPDF(closed)
+    const all = await fetchAllItemsForReport()
+    if (all) exportGovernanceReportPDF(all)
     setExportingReport(null)
   }
 
@@ -1764,4 +1764,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}     
+}     s 
