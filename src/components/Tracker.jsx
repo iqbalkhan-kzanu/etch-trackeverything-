@@ -9,7 +9,7 @@ import SubmitForApprovalModal from './SubmitForApprovalModal'
 import GroupsList from './GroupsList'
 import SemiconductorPulse from './SemiconductorPulse'
 import GovernanceAnalytics from './GovernanceAnalytics'
-import { exportClosedItemsCSV, exportClosedItemsPDF } from './governanceReport'
+import { exportGovernanceReportCSV, exportGovernanceReportPDF } from './governanceReport'
 
 const SOURCES = ['governance', 'audit', 'project', 'leadership_review', 'other']
 const STAGES = ['open', 'in_progress', 'ready_to_close', 'pending_approval', 'closed']
@@ -120,7 +120,11 @@ function computeScopedItems(navKey, items, user) {
         i.status === 'pending_approval' &&
         i.team === user?.team &&
         user?.role === 'MANAGER'
-      return visibleToTeam || pendingForManager
+      // Anything assigned by a manager/mentor to someone on this team should
+      // always surface under "My Team" — for the assignee AND for the
+      // manager — regardless of what visibility it was created with.
+      const assignedWithinTeam = !!i.assigned_by_mentor && i.team === user?.team
+      return visibleToTeam || pendingForManager || assignedWithinTeam
     }
     return true
   })
@@ -389,68 +393,35 @@ function AlertTriangleStatIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 2 20h20L12 3Z" /><path d="M12 10v4M12 17h.01" /></svg>)
 }
 
-function DonutChart({ segments, total, size = 116, thickness = 14 }) {
-  const radius = (size - thickness) / 2
-  const circumference = 2 * Math.PI * radius
-  let cumulativeFraction = 0
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={thickness} />
-      {segments.map((s) => {
-        if (!s.value || total === 0) return null
-        const frac = s.value / total
-        const dash = frac * circumference
-        const offset = -cumulativeFraction * circumference
-        cumulativeFraction += frac
-        return (
-          <circle
-            key={s.key}
-            cx={size / 2} cy={size / 2} r={radius}
-            fill="none"
-            stroke={s.color}
-            strokeWidth={thickness}
-            strokeDasharray={`${dash} ${circumference - dash}`}
-            strokeDashoffset={offset}
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          />
-        )
-      })}
-    </svg>
-  )
-}
-
 // Shows a fixed breakdown by SCOPE (My Tasks / My Team / General), computed
 // independently of which nav tab is currently selected — so the numbers no
-// longer change depending on which tab you're viewing.
-function TasksOverviewCard({ scopeCounts }) {
-  const segments = [
-    { key: 'mine', label: 'My Tasks', color: '#2B6CB0', value: scopeCounts.mine.total },
-    { key: 'team', label: 'My Team', color: '#7C5CBF', value: scopeCounts.team.total },
-    { key: 'general', label: 'General', color: '#D98C2B', value: scopeCounts.general.total },
+// longer change depending on which tab you're viewing. Each row is a single,
+// unambiguous total (no open/total pairing to misread) and jumps to that
+// scope's nav tab when clicked.
+function TasksOverviewCard({ scopeCounts, onSelect }) {
+  const rows = [
+    { key: 'mine', label: 'My Tasks', color: '#2B6CB0' },
+    { key: 'team', label: 'My Team', color: '#7C5CBF' },
+    { key: 'general', label: 'General', color: '#D98C2B' },
   ]
-  const total = segments.reduce((sum, s) => sum + s.value, 0)
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
-      <p className="text-sm font-semibold text-white mb-4">Tasks Overview</p>
-      <div className="relative w-[116px] h-[116px] mx-auto mb-4">
-        <DonutChart segments={segments} total={total} />
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-[9px] uppercase tracking-wider text-white/40">All Items</span>
-          <span className="text-xl font-bold text-white">{total}</span>
-        </div>
-      </div>
-      <div className="space-y-2.5">
-        {segments.map((s) => (
-          <div key={s.key} className="flex items-center justify-between text-xs">
-            <span className="flex items-center gap-2 text-white/70">
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-              {s.label}
+    <div className="bg-white/5 border border-white/10 rounded-tl-3xl rounded-br-3xl rounded-tr-lg rounded-bl-lg p-4 mb-6">
+      <p className="text-sm font-semibold text-white mb-3">Tasks Overview</p>
+      <div className="space-y-1.5">
+        {rows.map((r) => (
+          <button
+            key={r.key}
+            type="button"
+            onClick={() => onSelect(r.key)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-full bg-white/5 hover:bg-white/15 transition-colors text-left"
+          >
+            <span className="flex items-center gap-2 text-sm text-white/70">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
+              {r.label}
             </span>
-            <span className="font-semibold text-white">
-              {scopeCounts[s.key].open} open <span className="text-white/40">/ {s.value}</span>
-            </span>
-          </div>
+            <span className="text-lg font-bold text-white tabular-nums">{scopeCounts[r.key].total}</span>
+          </button>
         ))}
       </div>
     </div>
@@ -690,6 +661,7 @@ export default function Tracker({ user, onLogout }) {
   }, [user?.id])
 
   function goTo(key) {
+    if (key === 'analytics' && user?.role !== 'MANAGER') return
     setNav(key)
     localStorage.setItem(NAV_STORAGE_KEY, key)
     setMobileNavOpen(false)
@@ -707,26 +679,26 @@ export default function Tracker({ user, onLogout }) {
     setFocusedItemId(itemId)
   }
 
-  // Governance report exports — query every closed item directly regardless
-  // of which nav scope is currently loaded into `items`, so the report is
-  // always complete rather than limited to whatever's on screen.
-  async function fetchAllClosedItems() {
-    const { data, error } = await supabase.from('action_items').select('*').eq('status', 'closed')
+  // Governance report exports — query every item directly (open AND closed)
+  // regardless of which nav scope is currently loaded into `items`, so the
+  // report is always complete rather than limited to whatever's on screen.
+  async function fetchAllItemsForReport() {
+    const { data, error } = await supabase.from('action_items').select('*')
     if (error) { setError(error.message); return null }
     return data || []
   }
 
   async function handleExportCSV() {
     setExportingReport('csv')
-    const closed = await fetchAllClosedItems()
-    if (closed) exportClosedItemsCSV(closed)
+    const all = await fetchAllItemsForReport()
+    if (all) exportGovernanceReportCSV(all)
     setExportingReport(null)
   }
 
   async function handleExportPDF() {
     setExportingReport('pdf')
-    const closed = await fetchAllClosedItems()
-    if (closed) exportClosedItemsPDF(closed)
+    const all = await fetchAllItemsForReport()
+    if (all) exportGovernanceReportPDF(all)
     setExportingReport(null)
   }
 
@@ -961,6 +933,20 @@ export default function Tracker({ user, onLogout }) {
     }).eq('id', item.id)
     if (error) { setError(error.message); return }
     await supabase.from('item_activity').insert([{ item_id: item.id, actor: user?.name || 'Unknown', action: 'unblocked' }])
+    loadItems()
+  }
+
+  // Lets a manager delete an item ONLY if they're the one who assigned it
+  // via AssignWorkModal (item.assigned_by_mentor === their own name). Any
+  // other item — including things the manager just happens to see under
+  // "My Team" — is left alone.
+  async function deleteAssignedItem(item) {
+    if (item.assigned_by_mentor !== user?.name) return
+    const confirmed = window.confirm(`Delete "${item.title}"? This can't be undone.`)
+    if (!confirmed) return
+    await supabase.from('item_activity').delete().eq('item_id', item.id)
+    const { error } = await supabase.from('action_items').delete().eq('id', item.id)
+    if (error) { setError(error.message); return }
     loadItems()
   }
 
@@ -1205,13 +1191,24 @@ export default function Tracker({ user, onLogout }) {
                 </button>
               )
             )}
-            <button
-              onClick={() => (isEditingMentor ? setMentorEditing((p) => ({ ...p, [item.id]: false })) : openMentorEditor(item))}
-              className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap text-white transition-colors"
-              style={{ backgroundColor: isEditingMentor ? '#382854' : MENTOR_DARK }}
-            >
-              Mentor {item.mentor_comment ? '💬' : ''}
-            </button>
+            {isTeamManager && (
+              <button
+                onClick={() => (isEditingMentor ? setMentorEditing((p) => ({ ...p, [item.id]: false })) : openMentorEditor(item))}
+                className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap text-white transition-colors"
+                style={{ backgroundColor: isEditingMentor ? '#382854' : MENTOR_DARK }}
+              >
+                Mentor {item.mentor_comment ? '💬' : ''}
+              </button>
+            )}
+            {item.assigned_by_mentor === user?.name && item.status !== 'closed' && (
+              <button
+                onClick={() => deleteAssignedItem(item)}
+                title="Delete this assigned task"
+                className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap text-white bg-accent-red hover:bg-accent-red/90 transition-colors"
+              >
+                🗑 Delete
+              </button>
+            )}
             <button onClick={() => toggleExpanded(item.id)} className="font-mono text-[11px] uppercase tracking-wider text-white rounded-md px-2.5 py-1.5 whitespace-nowrap bg-ink hover:bg-ink/90 transition-colors">
               {isOpen ? 'Hide' : 'Timeline'} ({entries.length})
             </button>
@@ -1438,7 +1435,7 @@ export default function Tracker({ user, onLogout }) {
             )}
             {navItem('team', 'My Team', <TeamIcon className="w-4 h-4" />)}
             {navItem('safety', 'Safety at Site', <ShieldNavIcon className="w-4 h-4" />)}
-            {navItem('analytics', 'Governance Analytics', <AlertTriangleStatIcon className="w-4 h-4" />)}
+            {user?.role === 'MANAGER' && navItem('analytics', 'Governance Analytics', <AlertTriangleStatIcon className="w-4 h-4" />)}
             {navItem(
               'directory',
               <span className="flex items-center gap-2">
@@ -1467,7 +1464,7 @@ export default function Tracker({ user, onLogout }) {
           </nav>
 
           <div className="mt-6">
-            <TasksOverviewCard scopeCounts={scopeCounts} />
+            <TasksOverviewCard scopeCounts={scopeCounts} onSelect={goTo} />
           </div>
         </div>
         <div className="border-t border-white/10 pt-4">
@@ -1526,7 +1523,16 @@ export default function Tracker({ user, onLogout }) {
           ) : nav === 'pulse' ? (
             <SemiconductorPulse />
           ) : nav === 'analytics' ? (
-            <GovernanceAnalytics items={items} activity={activity} />
+            user?.role === 'MANAGER' ? (
+              <GovernanceAnalytics
+                items={items.filter((i) => i.team === user?.team)}
+                activity={activity}
+              />
+            ) : (
+              <div className="border border-dashed border-line rounded-xl p-10 text-center bg-surface">
+                <p className="text-ink font-medium">Governance Analytics is only available to managers.</p>
+              </div>
+            )
           ) : (      
             <>
               {nav === 'general' && (
@@ -1765,4 +1771,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}             
+}         
