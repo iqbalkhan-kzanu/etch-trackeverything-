@@ -1764,4 +1764,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}     s 
+}    
