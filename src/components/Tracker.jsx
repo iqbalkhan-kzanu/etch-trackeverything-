@@ -406,15 +406,15 @@ function TasksOverviewCard({ scopeCounts, onSelect }) {
   ]
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-tl-3xl rounded-br-3xl rounded-tr-lg rounded-bl-lg p-4 mb-6">
+    <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
       <p className="text-sm font-semibold text-white mb-3">Tasks Overview</p>
-      <div className="space-y-1.5">
+      <div className="space-y-1">
         {rows.map((r) => (
           <button
             key={r.key}
             type="button"
             onClick={() => onSelect(r.key)}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-full bg-white/5 hover:bg-white/15 transition-colors text-left"
+            className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-white/10 transition-colors text-left"
           >
             <span className="flex items-center gap-2 text-sm text-white/70">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
@@ -936,20 +936,6 @@ export default function Tracker({ user, onLogout }) {
     loadItems()
   }
 
-  // Lets a manager delete an item ONLY if they're the one who assigned it
-  // via AssignWorkModal (item.assigned_by_mentor === their own name). Any
-  // other item — including things the manager just happens to see under
-  // "My Team" — is left alone.
-  async function deleteAssignedItem(item) {
-    if (item.assigned_by_mentor !== user?.name) return
-    const confirmed = window.confirm(`Delete "${item.title}"? This can't be undone.`)
-    if (!confirmed) return
-    await supabase.from('item_activity').delete().eq('item_id', item.id)
-    const { error } = await supabase.from('action_items').delete().eq('id', item.id)
-    if (error) { setError(error.message); return }
-    loadItems()
-  }
-
   function toggleExpanded(id) { setExpanded((prev) => ({ ...prev, [id]: !prev[id] })) }
 
   function openMentorEditor(item) {
@@ -1093,6 +1079,63 @@ export default function Tracker({ user, onLogout }) {
     </button>
   )         
 
+  // Per-row actions rendered in the "Recent Tasks" table so a manager (or
+  // owner) can act on ANY row directly — not just whichever item happens to
+  // be the focused card above the table. Fixes the bug where a
+  // pending-approval item that wasn't focused had no Approve/Send Back
+  // controls anywhere on screen.
+  function renderRowActions(item) {
+    const label = nextActionLabel(item.status)
+    const isOwner = item.owner_name === user?.name
+    const isTeamManagerForItem = user?.role === 'MANAGER' && user?.team === item.team
+
+    if (item.status === 'pending_approval') {
+      if (isTeamManagerForItem) {
+        return (
+          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => approveItem(item)}
+              className="text-xs bg-accent-green text-white px-2 py-1 rounded-md hover:bg-accent-green/90 transition-colors whitespace-nowrap"
+            >
+              Approve
+            </button>
+            <button
+              onClick={() => setSendingBackItem(item)}
+              className="text-xs bg-accent-red text-white px-2 py-1 rounded-md hover:bg-accent-red/90 transition-colors whitespace-nowrap"
+            >
+              Send Back
+            </button>
+          </div>
+        )
+      }
+      return <span className="font-mono text-[10px] text-ink-muted italic whitespace-nowrap">Awaiting approval</span>
+    }
+
+    if (item.status === 'ready_to_close' && isOwner) {
+      return (
+        <button
+          onClick={(e) => { e.stopPropagation(); setSubmittingItem(item) }}
+          className="text-xs bg-ink text-white px-2 py-1 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap"
+        >
+          Submit
+        </button>
+      )
+    }
+
+    if (label) {
+      return (
+        <button
+          onClick={(e) => { e.stopPropagation(); setFocusedItemId(item.id); openStagePanel(item.id) }}
+          className="text-xs bg-ink text-white px-2 py-1 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap"
+        >
+          {label}
+        </button>
+      )
+    }
+
+    return <span className="font-mono text-[10px] text-ink-muted">—</span>
+  }
+
   function renderItemCard(item) {
     const style = STATUS_STYLES[item.status]
     const sevStyle = SEVERITY_STYLES[item.severity] || SEVERITY_STYLES.medium
@@ -1191,24 +1234,13 @@ export default function Tracker({ user, onLogout }) {
                 </button>
               )
             )}
-            {isTeamManager && (
-              <button
-                onClick={() => (isEditingMentor ? setMentorEditing((p) => ({ ...p, [item.id]: false })) : openMentorEditor(item))}
-                className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap text-white transition-colors"
-                style={{ backgroundColor: isEditingMentor ? '#382854' : MENTOR_DARK }}
-              >
-                Mentor {item.mentor_comment ? '💬' : ''}
-              </button>
-            )}
-            {item.assigned_by_mentor === user?.name && item.status !== 'closed' && (
-              <button
-                onClick={() => deleteAssignedItem(item)}
-                title="Delete this assigned task"
-                className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap text-white bg-accent-red hover:bg-accent-red/90 transition-colors"
-              >
-                🗑 Delete
-              </button>
-            )}
+            <button
+              onClick={() => (isEditingMentor ? setMentorEditing((p) => ({ ...p, [item.id]: false })) : openMentorEditor(item))}
+              className="font-mono text-[11px] uppercase tracking-wider rounded-md px-2.5 py-1.5 whitespace-nowrap text-white transition-colors"
+              style={{ backgroundColor: isEditingMentor ? '#382854' : MENTOR_DARK }}
+            >
+              Mentor {item.mentor_comment ? '💬' : ''}
+            </button>
             <button onClick={() => toggleExpanded(item.id)} className="font-mono text-[11px] uppercase tracking-wider text-white rounded-md px-2.5 py-1.5 whitespace-nowrap bg-ink hover:bg-ink/90 transition-colors">
               {isOpen ? 'Hide' : 'Timeline'} ({entries.length})
             </button>
@@ -1720,6 +1752,7 @@ export default function Tracker({ user, onLogout }) {
                                 <th className="text-left font-mono text-[11px] uppercase tracking-wider text-ink font-bold px-3 py-2.5">Severity</th>
                                 <th className="text-left font-mono text-[11px] uppercase tracking-wider text-ink font-bold px-3 py-2.5">Due Date</th>
                                 <th className="text-left font-mono text-[11px] uppercase tracking-wider text-ink font-bold px-3 py-2.5">Assignee</th>
+                                <th className="text-left font-mono text-[11px] uppercase tracking-wider text-ink font-bold px-3 py-2.5">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-line">
@@ -1753,6 +1786,9 @@ export default function Tracker({ user, onLogout }) {
                                         {getInitials(item.owner_name)}
                                       </div>
                                     </td>
+                                    <td className="px-3 py-3">
+                                      {renderRowActions(item)}
+                                    </td>
                                   </tr>
                                 )
                               })}
@@ -1771,4 +1807,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}   
+}    
