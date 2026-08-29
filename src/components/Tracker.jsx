@@ -898,6 +898,25 @@ export default function Tracker({ user, onLogout }) {
     loadItems()
   }
 
+  // Managers can delete any task that belongs to their own team (whether
+  // they created it, assigned it, or a teammate logged it). Cleans up the
+  // activity log rows first since there's no DB-level cascade assumed here.
+  async function deleteItem(item) {
+    const isTeamManagerForItem = user?.role === 'MANAGER' && user?.team === item.team
+    if (!isTeamManagerForItem) return
+    const confirmed = window.confirm(`Delete "${item.title}"? This cannot be undone.`)
+    if (!confirmed) return
+
+    const { error: activityError } = await supabase.from('item_activity').delete().eq('item_id', item.id)
+    if (activityError) { setError(activityError.message); return }
+
+    const { error } = await supabase.from('action_items').delete().eq('id', item.id)
+    if (error) { setError(error.message); return }
+
+    if (focusedItemId === item.id) setFocusedItemId(null)
+    loadItems()
+  }
+
   function openBlockEditor(item) {
     setBlockDraft((prev) => ({ ...prev, [item.id]: '' }))
     setBlockEditing((prev) => ({ ...prev, [item.id]: true }))
@@ -1089,30 +1108,38 @@ export default function Tracker({ user, onLogout }) {
     const isOwner = item.owner_name === user?.name
     const isTeamManagerForItem = user?.role === 'MANAGER' && user?.team === item.team
 
-    if (item.status === 'pending_approval') {
-      if (isTeamManagerForItem) {
-        return (
-          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => approveItem(item)}
-              className="text-xs bg-accent-green text-white px-2 py-1 rounded-md hover:bg-accent-green/90 transition-colors whitespace-nowrap"
-            >
-              Approve
-            </button>
-            <button
-              onClick={() => setSendingBackItem(item)}
-              className="text-xs bg-accent-red text-white px-2 py-1 rounded-md hover:bg-accent-red/90 transition-colors whitespace-nowrap"
-            >
-              Send Back
-            </button>
-          </div>
-        )
-      }
-      return <span className="font-mono text-[10px] text-ink-muted italic whitespace-nowrap">Awaiting approval</span>
-    }
+    const deleteButton = isTeamManagerForItem ? (
+      <button
+        onClick={(e) => { e.stopPropagation(); deleteItem(item) }}
+        title="Delete task"
+        className="text-xs text-ink-muted hover:text-accent-red border border-line hover:border-accent-red rounded-md px-2 py-1 transition-colors whitespace-nowrap"
+      >
+        🗑
+      </button>
+    ) : null
 
-    if (item.status === 'ready_to_close' && isOwner) {
-      return (
+    let primary
+    if (item.status === 'pending_approval') {
+      primary = isTeamManagerForItem ? (
+        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => approveItem(item)}
+            className="text-xs bg-accent-green text-white px-2 py-1 rounded-md hover:bg-accent-green/90 transition-colors whitespace-nowrap"
+          >
+            Approve
+          </button>
+          <button
+            onClick={() => setSendingBackItem(item)}
+            className="text-xs bg-accent-red text-white px-2 py-1 rounded-md hover:bg-accent-red/90 transition-colors whitespace-nowrap"
+          >
+            Send Back
+          </button>
+        </div>
+      ) : (
+        <span className="font-mono text-[10px] text-ink-muted italic whitespace-nowrap">Awaiting approval</span>
+      )
+    } else if (item.status === 'ready_to_close' && isOwner) {
+      primary = (
         <button
           onClick={(e) => { e.stopPropagation(); setSubmittingItem(item) }}
           className="text-xs bg-ink text-white px-2 py-1 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap"
@@ -1120,10 +1147,8 @@ export default function Tracker({ user, onLogout }) {
           Submit
         </button>
       )
-    }
-
-    if (label) {
-      return (
+    } else if (label) {
+      primary = (
         <button
           onClick={(e) => { e.stopPropagation(); setFocusedItemId(item.id); openStagePanel(item.id) }}
           className="text-xs bg-ink text-white px-2 py-1 rounded-md hover:bg-ink/90 transition-colors whitespace-nowrap"
@@ -1131,9 +1156,16 @@ export default function Tracker({ user, onLogout }) {
           {label}
         </button>
       )
+    } else {
+      primary = <span className="font-mono text-[10px] text-ink-muted">—</span>
     }
 
-    return <span className="font-mono text-[10px] text-ink-muted">—</span>
+    return (
+      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+        {primary}
+        {deleteButton}
+      </div>
+    )
   }
 
   function renderItemCard(item) {
@@ -1244,6 +1276,15 @@ export default function Tracker({ user, onLogout }) {
             <button onClick={() => toggleExpanded(item.id)} className="font-mono text-[11px] uppercase tracking-wider text-white rounded-md px-2.5 py-1.5 whitespace-nowrap bg-ink hover:bg-ink/90 transition-colors">
               {isOpen ? 'Hide' : 'Timeline'} ({entries.length})
             </button>
+            {isTeamManager && (
+              <button
+                onClick={() => deleteItem(item)}
+                title="Delete task"
+                className="font-mono text-[11px] uppercase tracking-wider text-ink-muted hover:text-accent-red border border-line hover:border-accent-red rounded-md px-2.5 py-1.5 whitespace-nowrap transition-colors"
+              >
+                🗑 Delete
+              </button>
+            )}
           </div>
         </div>
 
@@ -1807,4 +1848,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}    
+}   
