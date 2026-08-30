@@ -511,6 +511,8 @@ export default function Tracker({ user, onLogout }) {
   const [announcementDraft, setAnnouncementDraft] = useState('')
   const [postingAnnouncement, setPostingAnnouncement] = useState(false)
   const [groupUnread, setGroupUnread] = useState(0)
+  const [meetingUnread, setMeetingUnread] = useState(0)
+  const [focusMeetingId, setFocusMeetingId] = useState(null)
   const [hazardUnseen, setHazardUnseen] = useState(0)
   const [hazardToast, setHazardToast] = useState(null)
   const [focusedItemId, setFocusedItemId] = useState(null)
@@ -553,6 +555,19 @@ export default function Tracker({ user, onLogout }) {
       .eq('recipient_id', user.id)
       .is('read_at', null)
     if (!error) setUnreadMessages(count || 0)
+  }
+
+  // Unread messages tied specifically to a meeting (scheduling notifications) —
+  // powers the badge on the "Meeting Stamps" nav item.
+  async function loadMeetingUnread() {
+    if (!user?.id) return
+    const { count, error } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('recipient_id', user.id)
+      .is('read_at', null)
+      .not('meeting_id', 'is', null)
+    if (!error) setMeetingUnread(count || 0)
   }
 
   async function loadAnnouncements({ silent = false } = {}) {
@@ -645,7 +660,8 @@ export default function Tracker({ user, onLogout }) {
 
   useEffect(() => {
     loadUnreadMessages()
-    const interval = setInterval(loadUnreadMessages, 5000)
+    loadMeetingUnread()
+    const interval = setInterval(() => { loadUnreadMessages(); loadMeetingUnread() }, 5000)
     return () => clearInterval(interval)
   }, [user?.id])
 
@@ -658,7 +674,7 @@ export default function Tracker({ user, onLogout }) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'messages', filter: `recipient_id=eq.${user.id}` },
-        () => loadUnreadMessages()
+        () => { loadUnreadMessages(); loadMeetingUnread() }
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
@@ -673,6 +689,22 @@ export default function Tracker({ user, onLogout }) {
       localStorage.setItem(`etch_general_last_viewed_${user?.id}`, new Date().toISOString())
       setHazardUnseen(0)
     }
+    if (key === 'meetings' && user?.id) {
+      supabase.from('messages')
+        .update({ read_at: new Date().toISOString() })
+        .eq('recipient_id', user.id)
+        .is('read_at', null)
+        .not('meeting_id', 'is', null)
+        .then(() => { setMeetingUnread(0); loadUnreadMessages() })
+    }
+  }
+
+  // Called when a message in ChatModal links to a specific meeting — jumps
+  // to the Meeting Stamps tab and scrolls/highlights that meeting.
+  function openMeetingTarget(meetingId) {
+    setChatUser(null)
+    goTo('meetings')
+    setFocusMeetingId(meetingId)
   }
 
   // Called when a message in ChatModal is tied to an action item — jumps
@@ -1472,9 +1504,11 @@ export default function Tracker({ user, onLogout }) {
     onClose={() => {
       setChatUser(null)
       loadUnreadMessages()
+      loadMeetingUnread()
     }}
-    onMessagesRead={loadUnreadMessages}
+    onMessagesRead={() => { loadUnreadMessages(); loadMeetingUnread() }}
     onOpenItem={openMessageTarget}
+    onOpenMeeting={openMeetingTarget}
   />
 )}
 
@@ -1555,7 +1589,18 @@ export default function Tracker({ user, onLogout }) {
               <GroupsNavIcon className="w-4 h-4" />
             )}
             {navItem('pulse', 'Industry Pulse', <NewsIcon className="w-4 h-4" />)}
-            {navItem('meetings', 'Meeting Stamps', <CalendarNavIcon className="w-4 h-4" />)}
+            {navItem(
+              'meetings',
+              <span className="flex items-center gap-2">
+                Meeting Stamps
+                {meetingUnread > 0 && (
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {meetingUnread > 99 ? '99+' : meetingUnread}
+                  </span>
+                )}
+              </span>,
+              <CalendarNavIcon className="w-4 h-4" />
+            )}
           </nav>
 
           <div className="mt-6">
@@ -1627,7 +1672,7 @@ export default function Tracker({ user, onLogout }) {
           ) : nav === 'pulse' ? (
             <SemiconductorPulse />
           ) : nav === 'meetings' ? (
-            <Meetings user={user} />
+            <Meetings user={user} focusMeetingId={focusMeetingId} onFocusHandled={() => setFocusMeetingId(null)} />
           ) : nav === 'analytics' ? (
             user?.role === 'MANAGER' ? (
               <GovernanceAnalytics
@@ -1881,4 +1926,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}      
+}     

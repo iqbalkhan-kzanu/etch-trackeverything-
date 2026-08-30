@@ -32,8 +32,11 @@ function SendIcon({ className }) {
 function TaskLinkIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M8 10h8M8 14h5" /></svg>)
 }
+function CalendarLinkIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>)
+}
 
-export default function ChatModal({ currentUser, recipient, onClose, onMessagesRead, onOpenItem }) {
+export default function ChatModal({ currentUser, recipient, onClose, onMessagesRead, onOpenItem, onOpenMeeting }) {
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(true)
@@ -170,6 +173,33 @@ export default function ChatModal({ currentUser, recipient, onClose, onMessagesR
                               <p>{m.body}</p>
                               <p className="flex items-center gap-1 text-[10px] font-semibold mt-1.5" style={{ color: '#2B6CB0' }}>
                                 <TaskLinkIcon className="w-3 h-3" /> View task →
+                              </p>
+                            </button>
+                            <p className="text-[10px] text-ink-muted mt-1">{formatClock(m.created_at)}</p>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    // System-generated messages tied to a meeting (scheduled
+                    // notification) render as a tappable card that jumps
+                    // straight to that meeting in Meeting Stamps.
+                    if (m.meeting_id) {
+                      return (
+                        <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[75%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                            <button
+                              type="button"
+                              onClick={() => onOpenMeeting?.(m.meeting_id)}
+                              className={`text-left rounded-2xl px-4 py-2.5 text-sm border transition-colors w-full ${
+                                isMe
+                                  ? 'bg-[#7C5CBF]/10 border-[#7C5CBF]/30 hover:border-[#7C5CBF] text-ink rounded-tr-sm'
+                                  : 'bg-line/50 border-line hover:border-[#7C5CBF] text-ink rounded-tl-sm'
+                              }`}
+                            >
+                              <p>{m.body}</p>
+                              <p className="flex items-center gap-1 text-[10px] font-semibold mt-1.5" style={{ color: '#7C5CBF' }}>
+                                <CalendarLinkIcon className="w-3 h-3" /> View meeting →
                               </p>
                             </button>
                             <p className="text-[10px] text-ink-muted mt-1">{formatClock(m.created_at)}</p>

@@ -9,11 +9,14 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function MeetingCard({ m, currentUserId, onEditNotes }) {
+function MeetingCard({ m, currentUserId, isFocused, onEditNotes }) {
   const statusColor = m.status === 'completed' ? COMPLETED_COLOR : SCHEDULED_COLOR
   const canEdit = m.created_by === currentUserId || (Array.isArray(m.participants) && m.participants.some((p) => p.id === currentUserId))
   return (
-    <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+    <div
+      id={`meeting-${m.id}`}
+      className={`bg-surface border rounded-xl p-5 shadow-sm transition-shadow ${isFocused ? 'border-accent-blue ring-2 ring-accent-blue/30' : 'border-line'}`}
+    >
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -53,7 +56,7 @@ function MeetingCard({ m, currentUserId, onEditNotes }) {
   )
 }
 
-export default function Meetings({ user }) {
+export default function Meetings({ user, focusMeetingId, onFocusHandled }) {
   const [meetings, setMeetings] = useState([])
   const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
@@ -84,6 +87,15 @@ export default function Meetings({ user }) {
   }
 
   useEffect(() => { loadMeetings(); loadProfiles() }, [])
+
+  useEffect(() => {
+    if (!focusMeetingId) return
+    setTab('all')
+    const el = document.getElementById(`meeting-${focusMeetingId}`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (onFocusHandled) onFocusHandled()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusMeetingId, meetings])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -122,6 +134,7 @@ export default function Meetings({ user }) {
           sender_id: user?.id,
           recipient_id: p.id,
           body: `${user?.name} scheduled a meeting "${title.trim()}" on ${formatDate(meetingDate)}${location.trim() ? ` at ${location.trim()}` : ''}.`,
+          meeting_id: data[0].id,
           target_nav: 'meetings',
         }])
         if (msgError) console.error('meeting notify failed:', msgError.message)
@@ -277,11 +290,11 @@ export default function Meetings({ user }) {
                 </div>
               </div>
             ) : (
-              <MeetingCard key={m.id} m={m} currentUserId={user?.id} onEditNotes={openNotesEditor} />
+              <MeetingCard key={m.id} m={m} currentUserId={user?.id} isFocused={m.id === focusMeetingId} onEditNotes={openNotesEditor} />
             )
           ))}
         </div>
       )}
     </div>
   )
-}         
+}       
