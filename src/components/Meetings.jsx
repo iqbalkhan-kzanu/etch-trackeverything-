@@ -322,7 +322,7 @@ export default function Meetings({ user, focusMeetingId, onFocusHandled }) {
   )
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+    <div className="w-full px-4 sm:px-8 py-8">
       {fonts()}
 
       {/* Hero */}
@@ -462,4 +462,4 @@ export default function Meetings({ user, focusMeetingId, onFocusHandled }) {
       )}
     </div>
   )
-}     
+}    
