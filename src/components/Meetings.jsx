@@ -330,7 +330,7 @@ export default function Meetings({ user, focusMeetingId, onFocusHandled }) {
         <div>
           <h1 className="ms-display text-3xl font-semibold text-ink">Meeting Stamps</h1>
           <p className="text-sm text-ink-muted mt-1.5 max-w-md">
-            Every sync, logged or scheduled — your team's shared record of who met, when, and what got decided.
+            Up for a tea or a discussion      
           </p>
         </div>
         <div className="flex gap-2">
