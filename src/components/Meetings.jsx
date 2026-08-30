@@ -243,8 +243,10 @@ export default function Meetings({ user, focusMeetingId, onFocusHandled }) {
   const [liveTranscript, setLiveTranscript] = useState('')
   const [summarizing, setSummarizing] = useState(false)
   const [recordError, setRecordError] = useState('')
+  const [interimText, setInterimText] = useState('')
   const recognitionRef = useRef(null)
   const shouldKeepListeningRef = useRef(false)
+  const interimTextRef = useRef('')
 
   const speechSupported = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
 
@@ -257,15 +259,25 @@ export default function Meetings({ user, focusMeetingId, onFocusHandled }) {
     setRecordError('')
     const recognition = new SpeechRecognitionCtor()
     recognition.continuous = true
-    recognition.interimResults = false
+    // Interim results matter here: with this off, the engine only ever fires
+    // onresult once it's fully sure an utterance has ended — on a long,
+    // continuous 30s stretch of speech with no clear pause, that can mean
+    // ZERO events fire before Stop is clicked, and nothing gets captured.
+    // Turning this on gives us a running partial transcript we can rely on.
+    recognition.interimResults = true
     recognition.lang = 'en-US'
 
     recognition.onresult = (event) => {
       let finalChunk = ''
+      let interim = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) finalChunk += event.results[i][0].transcript + ' '
+        const chunk = event.results[i][0].transcript
+        if (event.results[i].isFinal) finalChunk += chunk + ' '
+        else interim += chunk
       }
       if (finalChunk) setLiveTranscript((prev) => (prev + ' ' + finalChunk).trim())
+      interimTextRef.current = interim
+      setInterimText(interim)
     }
     recognition.onerror = (event) => {
       if (event.error === 'no-speech') return
@@ -285,6 +297,19 @@ export default function Meetings({ user, focusMeetingId, onFocusHandled }) {
 
   function stopListening() {
     shouldKeepListeningRef.current = false
+    // Stop further onresult callbacks right away — otherwise a trailing
+    // "final" event can arrive a moment after stop() and duplicate the text
+    // we're about to fold in manually below.
+    if (recognitionRef.current) recognitionRef.current.onresult = null
+    // Whatever's still showing as "in progress" (interim) never got a
+    // chance to be marked final — treat it as final now rather than
+    // discarding it. This is what fixes long, pause-free recordings.
+    if (interimTextRef.current.trim()) {
+      const trailing = interimTextRef.current
+      setLiveTranscript((prev) => (prev + ' ' + trailing).trim())
+    }
+    interimTextRef.current = ''
+    setInterimText('')
     recognitionRef.current?.stop()
     setIsListening(false)
   }
@@ -398,6 +423,8 @@ export default function Meetings({ user, focusMeetingId, onFocusHandled }) {
     setNotesEditingId(m.id)
     setNotesDraft(m.notes || '')
     setLiveTranscript('')
+    setInterimText('')
+    interimTextRef.current = ''
     setRecordError('')
     setShowRecorder(false)
     if (isListening) stopListening()
@@ -675,9 +702,10 @@ export default function Meetings({ user, focusMeetingId, onFocusHandled }) {
                             You can close this and type notes manually below at any time — and if you hit "Save Notes" while
                             a recording is still pending, it's summarized automatically before saving.
                           </p>
-                          {liveTranscript && (
+                          {(liveTranscript || interimText) && (
                             <div className="max-h-28 overflow-y-auto bg-surface border border-line rounded-md p-2 text-xs text-ink-muted mb-2 whitespace-pre-wrap">
                               {liveTranscript}
+                              {interimText && <span className="italic opacity-60"> {interimText}</span>}
                             </div>
                           )}
                           {liveTranscript && !isListening && (
