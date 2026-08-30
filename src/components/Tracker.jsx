@@ -9,6 +9,7 @@ import SubmitForApprovalModal from './SubmitForApprovalModal'
 import GroupsList from './GroupsList'
 import SemiconductorPulse from './SemiconductorPulse'
 import GovernanceAnalytics from './GovernanceAnalytics'
+import Meetings from './Meetings'
 import { exportGovernanceReportCSV, exportGovernanceReportPDF } from './governanceReport'
 
 const SOURCES = ['governance', 'audit', 'project', 'leadership_review', 'other']
@@ -391,6 +392,9 @@ function AlarmStatIcon({ className }) {
 }
 function AlertTriangleStatIcon({ className }) {
   return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 2 20h20L12 3Z" /><path d="M12 10v4M12 17h.01" /></svg>)
+}
+function CalendarNavIcon({ className }) {
+  return (<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>)
 }
 
 // Shows a fixed breakdown by SCOPE (My Tasks / My Team / General), computed
@@ -914,6 +918,23 @@ export default function Tracker({ user, onLogout }) {
     if (error) { setError(error.message); return }
 
     if (focusedItemId === item.id) setFocusedItemId(null)
+    loadItems()
+  }
+
+  // Wipes every task and its activity log across the whole workspace (all
+  // teams, not just the manager's own) — for a full fresh start. Requires
+  // typing DELETE ALL to guard against accidental clicks.
+  async function resetAllTasks() {
+    const typed = window.prompt('This deletes ALL tasks for ALL teams and cannot be undone.\nType DELETE ALL to confirm:')
+    if (typed !== 'DELETE ALL') return
+
+    const { error: activityError } = await supabase.from('item_activity').delete().neq('item_id', '00000000-0000-0000-0000-000000000000')
+    if (activityError) { setError(activityError.message); return }
+
+    const { error } = await supabase.from('action_items').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    if (error) { setError(error.message); return }
+
+    setFocusedItemId(null)
     loadItems()
   }
 
@@ -1534,6 +1555,7 @@ export default function Tracker({ user, onLogout }) {
               <GroupsNavIcon className="w-4 h-4" />
             )}
             {navItem('pulse', 'Industry Pulse', <NewsIcon className="w-4 h-4" />)}
+            {navItem('meetings', 'Meeting Stamps', <CalendarNavIcon className="w-4 h-4" />)}
           </nav>
 
           <div className="mt-6">
@@ -1557,7 +1579,7 @@ export default function Tracker({ user, onLogout }) {
             <span className="text-sm font-medium text-ink">{user?.name}</span>
             <button onClick={onLogout} className="font-mono text-[11px] uppercase tracking-wider text-ink-muted border border-line rounded-md px-3 py-2">Log Out</button>
           </div>
-          {nav !== 'safety' && nav !== 'directory' && nav !== 'groups' && nav !== 'pulse' && nav !== 'analytics' && (     
+          {nav !== 'safety' && nav !== 'directory' && nav !== 'groups' && nav !== 'pulse' && nav !== 'analytics' && nav !== 'meetings' && (     
             <div className="flex items-center gap-2">
               <div className="flex gap-2">
                 <button
@@ -1578,6 +1600,15 @@ export default function Tracker({ user, onLogout }) {
               <button onClick={() => setShowForm((s) => !s)} className="bg-accent-blue text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-accent-blue/90 transition-colors whitespace-nowrap">
                 {showForm ? 'Cancel' : '+ New Action Item'}
               </button>
+              {user?.role === 'MANAGER' && (
+                <button
+                  onClick={resetAllTasks}
+                  title="Delete every task for a fresh start"
+                  className="border border-accent-red/40 text-accent-red text-sm px-3 py-2.5 rounded-lg hover:bg-accent-red/10 transition-colors whitespace-nowrap"
+                >
+                  Reset All Tasks
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1595,6 +1626,8 @@ export default function Tracker({ user, onLogout }) {
             <GroupsList user={user} profiles={profiles} onUnreadChange={setGroupUnread} />
           ) : nav === 'pulse' ? (
             <SemiconductorPulse />
+          ) : nav === 'meetings' ? (
+            <Meetings user={user} />
           ) : nav === 'analytics' ? (
             user?.role === 'MANAGER' ? (
               <GovernanceAnalytics
@@ -1848,4 +1881,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}   
+}      
