@@ -24,6 +24,9 @@ function startOfWeek(date) {
 }
 
 const weekLabel = (date) => date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+// Includes the weekday deliberately — "which day was this closed" is
+// exactly what the closure log needs to answer at a glance.
+const formatClosedDate = (date) => date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
 const isOverdueItem = (item, now) => item.status !== 'closed' && item.deadline && new Date(item.deadline) < new Date(now.toDateString())
 
 /* ---------------------------------------------------------------- metrics */
@@ -109,6 +112,13 @@ function computeMetrics(items = [], activity = {}) {
     if (e.action === 'flagged_blocked') blockedCount++
   }))
 
+  // Full historical record of closures, newest first — every closed item
+  // that has a known close date, so "which day was this closed" and "what's
+  // the past record" both have a real answer, not just an 8-week rollup.
+  const recentClosures = closedWithDates
+    .filter((i) => i._closedAt)
+    .sort((a, b) => b._closedAt - a._closedAt)
+
   return {
     totalItems: items.length,
     totalClosed: closed.length,
@@ -122,6 +132,7 @@ function computeMetrics(items = [], activity = {}) {
     weeks,
     sentBackCount,
     blockedCount,
+    recentClosures,
   }
 }
 
@@ -355,6 +366,52 @@ function EscalationVisual({ sentBack, blocked }) {
   )
 }
 
+// Full closure history — every task that's been closed, newest first, with
+// the exact day (including weekday) it closed, how long it took from
+// creation, and whether it beat its deadline. This is the "past record"
+// view: the 8-week chart shows the trend, this shows the actual log behind it.
+function ClosureLog({ items }) {
+  if (!items.length) {
+    return <p className="rounded-xl bg-soft p-6 text-center text-sm text-muted">No closures yet — this fills in as tasks get closed.</p>
+  }
+  return (
+    <div className="overflow-hidden rounded-xl border border-line">
+      <div className="grid grid-cols-[1.7fr_0.9fr_0.9fr_1.2fr_0.7fr] items-center border-b border-line bg-soft px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">
+        <span>Task</span><span>Team</span><span>Severity</span><span>Closed on</span><span className="text-right">Days open</span>
+      </div>
+      <div className="max-h-[440px] divide-y divide-line overflow-y-auto">
+        {items.map((item) => {
+          const color = SEVERITY_COLOR[item.severity] || COLOR.muted
+          return (
+            <div key={item.id} className="grid grid-cols-[1.7fr_0.9fr_0.9fr_1.2fr_0.7fr] items-center gap-2 px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
+                <p className="truncate text-xs text-muted">{item.owner_name}</p>
+              </div>
+              <span className="truncate text-sm text-muted">{item.team || '—'}</span>
+              <span className="flex items-center gap-1.5 text-sm capitalize text-ink">
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+                {item.severity || '—'}
+              </span>
+              <div>
+                <p className="text-sm font-medium text-ink">{formatClosedDate(item._closedAt)}</p>
+                {item._onTime !== null && (
+                  <span className={`text-xs font-semibold ${item._onTime ? 'text-green' : 'text-red'}`}>
+                    {item._onTime ? 'On time' : 'Late'}
+                  </span>
+                )}
+              </div>
+              <span className="text-right text-sm font-black tabular-nums text-ink">
+                {item._daysToClose !== null ? `${item._daysToClose}d` : '—'}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 /* ---------------------------------------------------------------- main */
 
 export default function GovernanceAnalytics({ items = [], activity = {} }) {
@@ -378,9 +435,9 @@ export default function GovernanceAnalytics({ items = [], activity = {} }) {
             <div>
               <div className="mb-2 flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: COLOR.green }} />
-                <span className="text-xs uppercase tracking-[0.18em] text-gray-400">ETCH · GOVERNANCE CONTROL</span>
+                <span className="text-xs uppercase tracking-[0.18em] text-gray-400">ETCH · TEAM ANALYTICS</span>
               </div>
-              <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Governance Analytics</h2>
+              <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Team Analytics</h2>
             </div>
             <div className="flex gap-3">
               <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
@@ -484,7 +541,17 @@ export default function GovernanceAnalytics({ items = [], activity = {} }) {
           </Card>
         </div>
 
+        {/* Closure log — the full past record, one row per closed task */}
+        <Card className="p-5">
+          <SectionHeader title="Closure log" right={
+            <span className="rounded-full bg-soft px-3 py-1 text-xs font-semibold text-muted">{m.recentClosures.length} closed</span>
+          } />
+          <div className="mt-4">
+            <ClosureLog items={m.recentClosures} />
+          </div>
+        </Card>
+
       </div>
     </div>
   )
-}     
+}         
