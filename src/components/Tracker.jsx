@@ -681,7 +681,6 @@ export default function Tracker({ user, onLogout }) {
   }, [user?.id])
 
   function goTo(key) {
-    if (key === 'analytics' && user?.role !== 'MANAGER') return
     setNav(key)
     localStorage.setItem(NAV_STORAGE_KEY, key)
     setMobileNavOpen(false)
@@ -1137,7 +1136,7 @@ export default function Tracker({ user, onLogout }) {
 
   const focusedItem = sortedFiltered.find((i) => i.id === focusedItemId) || null
 
-  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory', groups: 'Groups', pulse: 'Industry Pulse', analytics: 'Governance Analytics' }[nav]
+  const navTitle = { mine: 'My Tasks', general: 'General', team: 'My Team', safety: 'Safety at Site', directory: 'Team Directory', groups: 'Groups', pulse: 'Industry Pulse', analytics: 'Team Analytics' }[nav]
 
   const navItem = (key, label, icon) => (
     <button
@@ -1563,7 +1562,7 @@ export default function Tracker({ user, onLogout }) {
             )}
             {navItem('team', 'My Team', <TeamIcon className="w-4 h-4" />)}
             {navItem('safety', 'Safety at Site', <ShieldNavIcon className="w-4 h-4" />)}
-            {user?.role === 'MANAGER' && navItem('analytics', 'Governance Analytics', <AlertTriangleStatIcon className="w-4 h-4" />)}
+            {navItem('analytics', 'Team Analytics', <AlertTriangleStatIcon className="w-4 h-4" />)}
             {navItem(
               'directory',
               <span className="flex items-center gap-2">
@@ -1674,16 +1673,10 @@ export default function Tracker({ user, onLogout }) {
           ) : nav === 'meetings' ? (
             <Meetings user={user} focusMeetingId={focusMeetingId} onFocusHandled={() => setFocusMeetingId(null)} />
           ) : nav === 'analytics' ? (
-            user?.role === 'MANAGER' ? (
-              <GovernanceAnalytics
-                items={items.filter((i) => i.team === user?.team)}
-                activity={activity}
-              />
-            ) : (
-              <div className="border border-dashed border-line rounded-xl p-10 text-center bg-surface">
-                <p className="text-ink font-medium">Governance Analytics is only available to managers.</p>
-              </div>
-            )
+            <GovernanceAnalytics
+              items={items.filter((i) => i.team === user?.team)}
+              activity={activity}
+            />
           ) : (      
             <>
               {nav === 'general' && (
@@ -1926,4 +1919,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}     
+}        
