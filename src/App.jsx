@@ -18,7 +18,11 @@ export default function App() {
     if (session?.user) {
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
       if (profile) {
-        setUser({ id: session.user.id, name: profile.name, team: profile.team, email: session.user.email })
+        // role was missing here — handleAuthenticated (fresh login) includes
+        // it, but this restore-on-reload path didn't, so every manager
+        // check (Approve/Send Back, Delete) silently failed after an F5
+        // even though the profile row had the role all along.
+        setUser({ id: session.user.id, name: profile.name, team: profile.team, email: session.user.email, role: profile.role })
         setView('app')
       } else {
         setView('auth')
@@ -43,4 +47,4 @@ export default function App() {
   if (view === 'landing') return <Landing onEnter={() => setView('auth')} />
   if (view === 'auth') return <Auth onAuthenticated={handleAuthenticated} onBack={() => setView('landing')} />
   return <Tracker user={user} onLogout={handleLogout} />
-}  
+}      
