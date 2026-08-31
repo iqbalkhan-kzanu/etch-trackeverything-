@@ -88,6 +88,16 @@ function isOverdue(item) {
   return item.status !== 'closed' && new Date(item.deadline) < new Date(new Date().toDateString())
 }
 
+// A manager can delete a task if it belongs to their own team, OR if they
+// personally assigned it (via "Assign Work") — the latter covers tasks a
+// manager hands to someone on a different team, which otherwise wouldn't
+// match on team and would silently hide the delete option from its creator.
+function canManagerDelete(item, user) {
+  if (user?.role !== 'MANAGER') return false
+  if (user?.team === item.team) return true
+  return !!item.assigned_by_mentor && item.assigned_by_mentor === user?.name
+}
+
 function nextActionLabel(status) {
   if (status === 'open') return 'Start Progress'
   if (status === 'in_progress') return 'Mark Ready to Close'
@@ -934,11 +944,13 @@ export default function Tracker({ user, onLogout }) {
   }
 
   // Managers can delete any task that belongs to their own team (whether
-  // they created it, assigned it, or a teammate logged it). Cleans up the
-  // activity log rows first since there's no DB-level cascade assumed here.
+  // they created it, assigned it, or a teammate logged it) — AND any task
+  // they personally assigned via "Assign Work", even if it landed on a
+  // different team. Without that second clause, a manager assigning
+  // cross-team work would lose the ability to delete what they just
+  // created, since item.team wouldn't match their own team.
   async function deleteItem(item) {
-    const isTeamManagerForItem = user?.role === 'MANAGER' && user?.team === item.team
-    if (!isTeamManagerForItem) return
+    if (!canManagerDelete(item, user)) return
     const confirmed = window.confirm(`Delete "${item.title}"? This cannot be undone.`)
     if (!confirmed) return
 
@@ -1160,7 +1172,7 @@ export default function Tracker({ user, onLogout }) {
     const isOwner = item.owner_name === user?.name
     const isTeamManagerForItem = user?.role === 'MANAGER' && user?.team === item.team
 
-    const deleteButton = isTeamManagerForItem ? (
+    const deleteButton = canManagerDelete(item, user) ? (
       <button
         onClick={(e) => { e.stopPropagation(); deleteItem(item) }}
         title="Delete task"
@@ -1328,7 +1340,7 @@ export default function Tracker({ user, onLogout }) {
             <button onClick={() => toggleExpanded(item.id)} className="font-mono text-[11px] uppercase tracking-wider text-white rounded-md px-2.5 py-1.5 whitespace-nowrap bg-ink hover:bg-ink/90 transition-colors">
               {isOpen ? 'Hide' : 'Timeline'} ({entries.length})
             </button>
-            {isTeamManager && (
+            {canManagerDelete(item, user) && (
               <button
                 onClick={() => deleteItem(item)}
                 title="Delete task"
@@ -1919,4 +1931,4 @@ export default function Tracker({ user, onLogout }) {
       </div>
     </div>
   )
-}        
+}     
