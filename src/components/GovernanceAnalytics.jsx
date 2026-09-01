@@ -458,8 +458,8 @@ export default function GovernanceAnalytics({ items = [], activity = {} }) {
             <div className="flex items-center gap-4">
               <Ring value={m.complianceRate} color={complianceColor} label="on-time" size={92} />
               <div>
-                <p className="text-sm font-semibold text-muted">Compliance</p>
-                <p className="mt-1 text-sm text-muted">On-time closures</p>
+                <p className="text-sm font-semibold text-muted"></p>
+                <p className="mt-1 text-sm text-muted"></p>     
               </div>
             </div>
           </Card>
